@@ -9,12 +9,16 @@ using Microsoft.Extensions.Options;
 
 namespace MultiAgentCodeReview.Orchestration.Pipeline;
 
+public record ReviewOutput(PipelineContext Context, AgentResult Result);
+
 public class CodeReviewPipeline
 {
     private readonly FilterStage _filterStage;
     private readonly AgentFactory _agentFactory;
     private readonly PipelineConfig _config;
     private readonly ILogger<CodeReviewPipeline>? _logger;
+
+    public AgentFactory AgentFactory => _agentFactory;
 
     public CodeReviewPipeline(
         FilterStage filterStage,
@@ -28,7 +32,7 @@ public class CodeReviewPipeline
         _logger = logger;
     }
 
-    public async Task<AgentResult> RunReviewAsync(
+    public async Task<ReviewOutput> RunReviewAsync(
         string repositoryPath,
         string commitHash,
         string? baseCommit = null,
@@ -61,21 +65,7 @@ public class CodeReviewPipeline
         var finalResult = await synthesisAgent.SynthesizeAsync(specialistResults, context, cancellationToken);
         _logger?.LogInformation("Review complete. Found {Count} findings", finalResult.Findings.Count);
 
-        _logger?.LogInformation("Stage 5: Generating documentation...");
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                var docAgent = _agentFactory.CreateDocumentationAgent();
-                await docAgent.GenerateDocumentationAsync(context, finalResult, cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                _logger?.LogWarning(ex, "Documentation generation failed");
-            }
-        }, cancellationToken);
-
-        return finalResult;
+        return new ReviewOutput(context, finalResult);
     }
 
     private async Task<List<AgentResult>> RunSpecialistsAsync(

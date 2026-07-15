@@ -5,6 +5,9 @@ obj/
 # Environment files with secrets
 .env
 
+# Review cache
+.review-cache.json
+
 # IDE
 .vs/
 .vscode/

@@ -105,7 +105,12 @@ public class AgentFactory
         return new ModelConfig(
             Role: role,
             Provider: "groq",
-            ModelId: "llama-3.3-70b-versatile",
+            ModelId: role switch
+            {
+                "documentation" => "llama-3.1-8b-instant",
+                "onboarding" => "llama-3.1-8b-instant",
+                _ => "llama-3.3-70b-versatile"
+            },
             Temperature: role switch
             {
                 "triage" => 0.1,
