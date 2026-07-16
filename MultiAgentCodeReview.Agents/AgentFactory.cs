@@ -107,7 +107,6 @@ public class AgentFactory
             Provider: "groq",
             ModelId: role switch
             {
-                "documentation" => "llama-3.1-8b-instant",
                 "onboarding" => "llama-3.1-8b-instant",
                 _ => "llama-3.3-70b-versatile"
             },
@@ -131,7 +130,7 @@ public class AgentFactory
                 "performance" => 2000,
                 "modernization" => 3000,
                 "synthesis" => 4000,
-                "documentation" => 4000,
+                "documentation" => 8000,
                 "onboarding" => 3000,
                 _ => 2000
             },
