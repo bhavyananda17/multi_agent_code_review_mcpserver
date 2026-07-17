@@ -41,10 +41,10 @@ graph TB
     end
 
     subgraph "External"
-        SA -->|"HTTP"| Groq1[Groq API]
-        PA -->|"HTTP"| Groq2[Groq API]
-        MA -->|"HTTP"| Groq3[Groq API]
-        Triage -->|"HTTP"| Groq0[Groq API<br/>8B Model]
+        SA -->|"HTTP"| Groq[Groq API<br/>Llama 3.3-70B]
+        PA -->|"HTTP"| Groq
+        MA -->|"HTTP"| Groq
+        Triage -->|"HTTP"| GroqT[Groq API<br/>Llama 3.1-8B]
     end
 
     Report -->|"markdown report"| CLI
