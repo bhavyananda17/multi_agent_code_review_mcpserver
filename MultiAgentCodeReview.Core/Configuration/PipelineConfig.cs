@@ -27,7 +27,7 @@ public class StageConfig
 {
     public List<string> Stages { get; set; } = ["filter", "triage", "specialists", "synthesis", "documentation"];
     public int TimeoutSeconds { get; set; } = 300;
-    public int MaxConcurrentAgents { get; set; } = 1; // Sequential for rate limits
+    public int MaxConcurrentAgents { get; set; } = 4; // Parallel — each agent uses its own API key
 }
 
 public class FilterConfig

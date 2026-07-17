@@ -27,15 +27,29 @@ public class FilterStage
         var diff = await git.GetDiffAsync(fromRef, commitHash);
         var changedFiles = await git.GetChangedFilesAsync(fromRef);
 
+        var sourceExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ".cs", ".csproj", ".fsproj", ".vbproj", ".sln", ".fs", ".fsx", ".props", ".targets"
+        };
+
+        changedFiles = changedFiles
+            .Where(f => sourceExtensions.Contains(Path.GetExtension(f)))
+            .ToList();
+
+        var filteredDiff = new GitDiff(
+            diff.Summary,
+            diff.Files.Where(f => sourceExtensions.Contains(Path.GetExtension(f.Path))).ToList()
+        );
+
         var dependencyGraph = await BuildDependencyGraphAsync(changedFiles, repositoryPath, cancellationToken);
-        var filteredFiles = FilterRelevantFiles(changedFiles, dependencyGraph, diff, maxFiles, minFiles);
+        var filteredFiles = FilterRelevantFiles(changedFiles, dependencyGraph, filteredDiff, maxFiles, minFiles);
 
         return new PipelineContext(
             RepositoryPath: repositoryPath,
             CommitHash: commitHash,
             BaseCommit: baseCommit,
             ChangedFiles: filteredFiles,
-            Diff: diff,
+            Diff: filteredDiff,
             DependencyGraph: dependencyGraph
         );
     }

@@ -37,8 +37,6 @@ public class TriageAgent : MultiAgentCodeReview.Core.Interfaces.ITriageAgent
     private string BuildTriagePrompt(PipelineContext context)
     {
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine("Classify the following code changes to route to specialist agents:");
-        sb.AppendLine();
         sb.AppendLine($"Repository: {context.RepositoryPath}");
         sb.AppendLine($"Commit: {context.CommitHash}");
         sb.AppendLine($"Changed Files: {context.ChangedFiles.Count}");
@@ -56,12 +54,6 @@ public class TriageAgent : MultiAgentCodeReview.Core.Interfaces.ITriageAgent
             sb.AppendLine(context.Diff.Summary);
         }
 
-        sb.AppendLine();
-        sb.AppendLine("Return JSON with classifications, routeTo, priority, and reasoning.");
-        sb.AppendLine("Categories: SECURITY_SENSITIVE, LOGIC_CRITICAL, PERFORMANCE_IMPACT, MODERNIZATION_NEEDED");
-        sb.AppendLine("RouteTo: SecurityAgent, LogicAgent, PerformanceAgent, ModernizationAgent");
-        sb.AppendLine("Priority: CRITICAL, HIGH, MEDIUM, LOW");
-
         return sb.ToString();
     }
 
@@ -71,12 +63,49 @@ public class TriageAgent : MultiAgentCodeReview.Core.Interfaces.ITriageAgent
         {
             var cleaned = CleanJsonResponse(response);
             var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+
+            // Try new format: {"selected_agents": ["SECURITY", "PERFORMANCE"]}
+            using var doc = JsonDocument.Parse(cleaned);
+            if (doc.RootElement.TryGetProperty("selected_agents", out var agentsElement))
+            {
+                var agentNames = new List<string>();
+                foreach (var agent in agentsElement.EnumerateArray())
+                {
+                    var name = agent.GetString()?.ToUpperInvariant();
+                    if (name != null) agentNames.Add(name);
+                }
+
+                var routeTo = agentNames.Select(MapAgentName).Where(n => n != null).Cast<string>().ToList();
+                var classifications = agentNames.ToList();
+
+                return new TriageResult(
+                    classifications,
+                    routeTo,
+                    agentNames.Count >= 3 ? "HIGH" : agentNames.Count >= 2 ? "MEDIUM" : "LOW",
+                    $"Routed to {routeTo.Count} agents: {string.Join(", ", routeTo)}"
+                );
+            }
+
+            // Fallback: old format with classifications/routeTo/priority
             return JsonSerializer.Deserialize<TriageResult>(cleaned, options) ?? CreateDefault();
         }
         catch
         {
             return CreateDefault();
         }
+    }
+
+    private static string? MapAgentName(string agentName)
+    {
+        return agentName.ToUpperInvariant() switch
+        {
+            "SECURITY" => "SecurityAgent",
+            "PERFORMANCE" => "PerformanceAgent",
+            "MODERNIZATION" => "ModernizationAgent",
+            "LOGIC" => "LogicAgent",
+            _ when agentName.EndsWith("Agent") => agentName,
+            _ => null
+        };
     }
 
     private static string CleanJsonResponse(string response)
@@ -95,9 +124,9 @@ public class TriageAgent : MultiAgentCodeReview.Core.Interfaces.ITriageAgent
     }
 
     private static TriageResult CreateDefault() => new(
-        new List<string> { "LOGIC_CRITICAL" },
-        new List<string> { "LogicAgent" },
+        new List<string> { "SECURITY", "PERFORMANCE", "MODERNIZATION" },
+        new List<string> { "SecurityAgent", "PerformanceAgent", "ModernizationAgent" },
         "MEDIUM",
-        "Default fallback classification"
+        "Default fallback — routing to all specialist agents"
     );
 }

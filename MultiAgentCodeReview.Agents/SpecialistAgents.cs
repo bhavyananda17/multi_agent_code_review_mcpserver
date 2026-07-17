@@ -35,6 +35,8 @@ public abstract class BaseSpecialistAgent : MultiAgentCodeReview.Core.Interfaces
         if (string.IsNullOrWhiteSpace(response))
             return new AgentResult(new List<Finding>(), "No response from agent");
 
+        response = StripThinkingTags(response);
+
         // Try 1: Direct JSON parse
         try
         {
@@ -63,6 +65,15 @@ public abstract class BaseSpecialistAgent : MultiAgentCodeReview.Core.Interfaces
         // Try 3: Fallback to text parsing
         var findings = ExtractFindingsFromText(response);
         return new AgentResult(findings, response);
+    }
+
+    private static string StripThinkingTags(string response)
+    {
+        return System.Text.RegularExpressions.Regex.Replace(
+            response,
+            @"<thinking>[\s\S]*?</thinking>\s*",
+            "",
+            System.Text.RegularExpressions.RegexOptions.Multiline).Trim();
     }
 
     private static List<Finding> ExtractFindingsFromText(string response)
@@ -184,19 +195,67 @@ public abstract class BaseSpecialistAgent : MultiAgentCodeReview.Core.Interfaces
             sb.AppendLine($"--- {fileDiff.Path} ---");
             foreach (var hunk in fileDiff.Hunks)
             {
-                if (totalChars + hunk.Content.Length > maxChars)
+                var numbered = InjectLineNumbers(hunk);
+                if (totalChars + numbered.Length > maxChars)
                 {
                     var remaining = maxChars - totalChars;
                     if (remaining > 100)
-                        sb.AppendLine(hunk.Content.Substring(0, remaining) + "\n... [truncated]");
+                        sb.AppendLine(numbered.Substring(0, remaining) + "\n... [truncated]");
                     sb.AppendLine($"... [{context.Diff.Files.Count - context.Diff.Files.IndexOf(fileDiff)} more files truncated]");
                     return sb.ToString();
                 }
-                sb.AppendLine(hunk.Content);
-                totalChars += hunk.Content.Length;
+                sb.AppendLine(numbered);
+                totalChars += numbered.Length;
             }
             sb.AppendLine();
         }
+        return sb.ToString();
+    }
+
+    private static string InjectLineNumbers(Hunk hunk)
+    {
+        var sb = new System.Text.StringBuilder();
+        var lines = hunk.Content.Split('\n');
+        int newLine = hunk.NewStart;
+
+        foreach (var rawLine in lines)
+        {
+            var line = rawLine.TrimEnd('\r');
+
+            if (line.StartsWith("@@"))
+            {
+                sb.AppendLine(line);
+                continue;
+            }
+
+            if (line.Length == 0)
+            {
+                sb.AppendLine(line);
+                continue;
+            }
+
+            char prefix = line[0];
+            string rest = line.Length > 1 ? line.Substring(1) : "";
+
+            switch (prefix)
+            {
+                case ' ':
+                    sb.AppendLine($"[Line {newLine}] {rest}");
+                    newLine++;
+                    break;
+                case '+':
+                    sb.AppendLine($"[Line {newLine}] +{rest}");
+                    newLine++;
+                    break;
+                case '-':
+                    sb.AppendLine($"[-] -{rest}");
+                    break;
+                default:
+                    sb.AppendLine(line);
+                    break;
+            }
+        }
+
         return sb.ToString();
     }
 }

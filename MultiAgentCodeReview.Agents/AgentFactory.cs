@@ -107,6 +107,7 @@ public class AgentFactory
             Provider: "groq",
             ModelId: role switch
             {
+                "triage" => "llama-3.1-8b-instant",
                 "onboarding" => "llama-3.1-8b-instant",
                 _ => "llama-3.3-70b-versatile"
             },
