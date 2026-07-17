@@ -35,6 +35,7 @@ public abstract class BaseSpecialistAgent : MultiAgentCodeReview.Core.Interfaces
         if (string.IsNullOrWhiteSpace(response))
             return new AgentResult(new List<Finding>(), "No response from agent");
 
+        // Try 1: Direct JSON parse
         try
         {
             var cleaned = CleanJsonResponse(response);
@@ -45,6 +46,21 @@ public abstract class BaseSpecialistAgent : MultiAgentCodeReview.Core.Interfaces
         }
         catch { }
 
+        // Try 2: Extract JSON from mixed text (LLM may wrap JSON in explanation)
+        try
+        {
+            var extracted = ExtractJsonFromText(response);
+            if (!string.IsNullOrEmpty(extracted))
+            {
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var result = JsonSerializer.Deserialize<AgentResult>(extracted, options);
+                if (result != null && result.Findings.Count > 0)
+                    return result;
+            }
+        }
+        catch { }
+
+        // Try 3: Fallback to text parsing
         var findings = ExtractFindingsFromText(response);
         return new AgentResult(findings, response);
     }
@@ -53,9 +69,9 @@ public abstract class BaseSpecialistAgent : MultiAgentCodeReview.Core.Interfaces
     {
         var findings = new List<Finding>();
         var lines = response.Split('\n');
-        foreach (var line in lines)
+        for (int i = 0; i < lines.Length; i++)
         {
-            var trimmed = line.TrimStart(' ', '-', '*', '#');
+            var trimmed = lines[i].TrimStart(' ', '-', '*', '#');
             if (trimmed.Contains("severity:", StringComparison.OrdinalIgnoreCase) ||
                 trimmed.Contains("[high]", StringComparison.OrdinalIgnoreCase) ||
                 trimmed.Contains("[medium]", StringComparison.OrdinalIgnoreCase) ||
@@ -66,11 +82,28 @@ public abstract class BaseSpecialistAgent : MultiAgentCodeReview.Core.Interfaces
                     : trimmed.Contains("high", StringComparison.OrdinalIgnoreCase) ? Severity.High
                     : trimmed.Contains("medium", StringComparison.OrdinalIgnoreCase) ? Severity.Medium
                     : Severity.Low;
+
+                // Try to extract file and line from surrounding context
+                var file = "";
+                int line = 0;
+                for (int j = Math.Max(0, i - 3); j <= Math.Min(lines.Length - 1, i + 3); j++)
+                {
+                    var contextLine = lines[j];
+                    // Look for file:line pattern
+                    var match = System.Text.RegularExpressions.Regex.Match(contextLine, @"([a-zA-Z0-9_/\.\-]+\.(cs|js|ts|py|java|go|rb|cpp|c|h|tsx|jsx)):(\d+)");
+                    if (match.Success)
+                    {
+                        file = match.Groups[1].Value;
+                        int.TryParse(match.Groups[3].Value, out line);
+                        break;
+                    }
+                }
+
                 findings.Add(new Finding(
                     severity,
                     FindingCategory.CodeSmell,
-                    "",
-                    0,
+                    file,
+                    line,
                     trimmed.Length > 200 ? trimmed.Substring(0, 200) : trimmed,
                     "",
                     "",
@@ -94,6 +127,37 @@ public abstract class BaseSpecialistAgent : MultiAgentCodeReview.Core.Interfaces
                 trimmed = trimmed.Substring(0, lastBackticks);
         }
         return trimmed.Trim();
+    }
+
+    private static string ExtractJsonFromText(string response)
+    {
+        // Try to find a JSON object or array in mixed text
+        // Look for the first { or [ that starts a valid JSON structure
+        var patterns = new[]
+        {
+            // Look for JSON object with "findings" key
+            @"\{[\s\S]*""findings""[\s\S]*\}",
+            // Look for any JSON object
+            @"\{[\s\S]*\}",
+            // Look for JSON array
+            @"\[[\s\S]*\]"
+        };
+
+        foreach (var pattern in patterns)
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(response, pattern, System.Text.RegularExpressions.RegexOptions.Singleline);
+            if (match.Success)
+            {
+                var candidate = match.Value;
+                // Validate it's somewhat reasonable length
+                if (candidate.Length > 20 && candidate.Length < response.Length)
+                {
+                    return candidate;
+                }
+            }
+        }
+
+        return "";
     }
 
     protected static string BuildContextSummary(PipelineContext context)
@@ -203,12 +267,50 @@ public class ModernizationAgent : BaseSpecialistAgent
     protected override string BuildPrompt(PipelineContext context)
     {
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine("Analyze the following code changes for technical debt and modernization opportunities:");
+        sb.AppendLine("Analyze the following code changes and project structure for technical debt and modernization opportunities:");
         sb.AppendLine();
         sb.AppendLine(BuildContextSummary(context));
-        sb.AppendLine(BuildDiffContent(context));
-        sb.AppendLine("Focus: Outdated frameworks, legacy patterns, missing modern C#, outdated NuGet packages, architecture debt, missing tests.");
-        sb.AppendLine("Return JSON with findings, modernizationContext for each finding.");
+        sb.AppendLine();
+
+        // Add project structure context for broader modernization suggestions
+        sb.AppendLine("=== PROJECT STRUCTURE ===");
+        var allFiles = context.ChangedFiles.Select(f => f.Path).ToList();
+        var csprojFiles = allFiles.Where(f => f.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase)).ToList();
+        var csFiles = allFiles.Where(f => f.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)).ToList();
+        var configFiles = allFiles.Where(f => f.EndsWith(".json", StringComparison.OrdinalIgnoreCase) ||
+                                               f.EndsWith(".xml", StringComparison.OrdinalIgnoreCase) ||
+                                               f.EndsWith(".config", StringComparison.OrdinalIgnoreCase)).ToList();
+
+        sb.AppendLine($"Total changed files: {allFiles.Count}");
+        if (csprojFiles.Any())
+        {
+            sb.AppendLine($"Project files (.csproj): {string.Join(", ", csprojFiles)}");
+            sb.AppendLine("Look for: outdated target frameworks, deprecated package references, missing nullable enable");
+        }
+        if (configFiles.Any())
+        {
+            sb.AppendLine($"Config files: {string.Join(", ", configFiles)}");
+            sb.AppendLine("Look for: legacy configuration patterns, missing modern config providers");
+        }
+        if (csFiles.Any())
+        {
+            sb.AppendLine($"C# files: {csFiles.Count} files");
+            sb.AppendLine("Look for: missing modern C# features, legacy patterns, outdated APIs");
+        }
+
+        sb.AppendLine();
+        sb.AppendLine("=== CODE CHANGES ===");
+        sb.AppendLine(BuildDiffContent(context, maxChars: 6000));
+
+        sb.AppendLine();
+        sb.AppendLine("=== MODERNIZATION ANALYSIS INSTRUCTIONS ===");
+        sb.AppendLine("1. Analyze the diff for immediate legacy patterns in changed code");
+        sb.AppendLine("2. Based on project structure, suggest PROJECT-WIDE modernization opportunities");
+        sb.AppendLine("3. For each finding, explain: what is legacy, what is modern, effort to migrate");
+        sb.AppendLine("4. End your summary with a 'Modernization Roadmap' listing prioritized migration steps");
+        sb.AppendLine("5. Consider: target framework version, package freshness, C# language version, architecture patterns");
+        sb.AppendLine();
+        sb.AppendLine("Return JSON with findings array and summary. Include modernizationContext for each finding.");
         return sb.ToString();
     }
 }

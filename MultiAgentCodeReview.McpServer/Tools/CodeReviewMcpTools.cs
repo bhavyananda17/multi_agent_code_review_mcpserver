@@ -129,28 +129,87 @@ public class CodeReviewMcpTools
         sb.AppendLine($"**Repository:** {output.Context.RepositoryPath}");
         sb.AppendLine($"**Commit:** {output.Context.CommitHash}");
         sb.AppendLine($"**Base:** {output.Context.BaseCommit ?? "HEAD~1"}");
-        sb.AppendLine($"**Findings:** {findings?.Count ?? 0}");
+        sb.AppendLine($"**Total Findings:** {findings?.Count ?? 0}");
         sb.AppendLine();
+
+        // Executive summary from synthesis agent
         sb.AppendLine(output.Result.Summary ?? "No summary available");
+        sb.AppendLine();
 
         if (findings is { Count: > 0 })
         {
+            // Group findings by severity
+            var critical = findings.Where(f => f.Severity == Severity.Critical).ToList();
+            var high = findings.Where(f => f.Severity == Severity.High).ToList();
+            var medium = findings.Where(f => f.Severity == Severity.Medium).ToList();
+            var low = findings.Where(f => f.Severity == Severity.Low).ToList();
+
+            sb.AppendLine("---");
             sb.AppendLine();
-            sb.AppendLine("## Findings");
-            foreach (var finding in findings)
+
+            // Critical findings
+            if (critical.Any())
             {
+                sb.AppendLine("## CRITICAL - Must Fix Before Merge");
                 sb.AppendLine();
-                sb.AppendLine($"### [{finding.Severity}] {finding.Category} in {finding.File}:{finding.Line}");
-                sb.AppendLine();
-                sb.AppendLine(finding.Description);
-                sb.AppendLine();
-                sb.AppendLine($"**Recommendation:** {finding.Recommendation}");
-                if (!string.IsNullOrEmpty(finding.CodeSnippet))
+                foreach (var finding in critical)
                 {
-                    sb.AppendLine();
-                    sb.AppendLine("```");
-                    sb.AppendLine(finding.CodeSnippet);
-                    sb.AppendLine("```");
+                    FormatFinding(sb, finding);
+                }
+            }
+
+            // High findings
+            if (high.Any())
+            {
+                sb.AppendLine("## HIGH - Fix Soon");
+                sb.AppendLine();
+                foreach (var finding in high)
+                {
+                    FormatFinding(sb, finding);
+                }
+            }
+
+            // Medium findings
+            if (medium.Any())
+            {
+                sb.AppendLine("## MEDIUM - Address This Sprint");
+                sb.AppendLine();
+                foreach (var finding in medium)
+                {
+                    FormatFinding(sb, finding);
+                }
+            }
+
+            // Low findings
+            if (low.Any())
+            {
+                sb.AppendLine("## LOW - Suggestions");
+                sb.AppendLine();
+                foreach (var finding in low)
+                {
+                    FormatFinding(sb, finding);
+                }
+            }
+
+            // Modernization Roadmap section
+            var modernizationFindings = findings.Where(f =>
+                f.Category == FindingCategory.LegacyPattern ||
+                f.Category == FindingCategory.OutdatedFramework ||
+                f.Category == FindingCategory.MissingModernLanguageFeatures ||
+                f.Category == FindingCategory.ArchitectureDebt ||
+                f.Category == FindingCategory.OutdatedDependencies).ToList();
+
+            if (modernizationFindings.Any())
+            {
+                sb.AppendLine("---");
+                sb.AppendLine();
+                sb.AppendLine("## Modernization Roadmap");
+                sb.AppendLine();
+                sb.AppendLine("### Project-Wide Modernization Opportunities");
+                sb.AppendLine();
+                foreach (var finding in modernizationFindings)
+                {
+                    FormatModernizationFinding(sb, finding);
                 }
             }
         }
@@ -161,6 +220,136 @@ public class CodeReviewMcpTools
         }
 
         return sb.ToString();
+    }
+
+    private static void FormatFinding(StringBuilder sb, Finding finding)
+    {
+        var location = !string.IsNullOrEmpty(finding.File) && finding.Line > 0
+            ? $"`{finding.File}:{finding.Line}`"
+            : !string.IsNullOrEmpty(finding.File)
+                ? $"`{finding.File}`"
+                : "(location not determined)";
+
+        sb.AppendLine($"### [{finding.Severity}] {finding.Category}");
+        sb.AppendLine($"- **File:** {location}");
+        sb.AppendLine($"- **Confidence:** {finding.Confidence:P0}");
+        sb.AppendLine();
+        sb.AppendLine(finding.Description);
+        sb.AppendLine();
+
+        if (!string.IsNullOrEmpty(finding.Recommendation))
+        {
+            sb.AppendLine($"**Recommendation:** {finding.Recommendation}");
+            sb.AppendLine();
+        }
+
+        if (!string.IsNullOrEmpty(finding.CodeSnippet))
+        {
+            sb.AppendLine("**Current Code:**");
+            sb.AppendLine("```");
+            sb.AppendLine(finding.CodeSnippet);
+            sb.AppendLine("```");
+            sb.AppendLine();
+        }
+
+        if (finding.FixExample != null && (!string.IsNullOrEmpty(finding.FixExample.Before) || !string.IsNullOrEmpty(finding.FixExample.After)))
+        {
+            if (!string.IsNullOrEmpty(finding.FixExample.Before))
+            {
+                sb.AppendLine("**Before:**");
+                sb.AppendLine("```");
+                sb.AppendLine(finding.FixExample.Before);
+                sb.AppendLine("```");
+                sb.AppendLine();
+            }
+            if (!string.IsNullOrEmpty(finding.FixExample.After))
+            {
+                sb.AppendLine("**After (Recommended Fix):**");
+                sb.AppendLine("```");
+                sb.AppendLine(finding.FixExample.After);
+                sb.AppendLine("```");
+                sb.AppendLine();
+            }
+        }
+
+        if (finding.Impact != null && finding.Impact.Count > 0)
+        {
+            sb.AppendLine("**Impact:**");
+            foreach (var kvp in finding.Impact)
+            {
+                sb.AppendLine($"- {kvp.Key}: {kvp.Value}");
+            }
+            sb.AppendLine();
+        }
+
+        if (finding.Metrics != null && finding.Metrics.Count > 0)
+        {
+            sb.AppendLine("**Metrics:**");
+            foreach (var kvp in finding.Metrics)
+            {
+                sb.AppendLine($"- {kvp.Key}: {kvp.Value}");
+            }
+            sb.AppendLine();
+        }
+
+        if (finding.References != null && finding.References.Count > 0)
+        {
+            sb.AppendLine($"**References:** {string.Join(", ", finding.References)}");
+            sb.AppendLine();
+        }
+
+        sb.AppendLine();
+    }
+
+    private static void FormatModernizationFinding(StringBuilder sb, Finding finding)
+    {
+        var location = !string.IsNullOrEmpty(finding.File) && finding.Line > 0
+            ? $"`{finding.File}:{finding.Line}`"
+            : !string.IsNullOrEmpty(finding.File)
+                ? $"`{finding.File}`"
+                : "(project-wide)";
+
+        sb.AppendLine($"#### {finding.Category}: {location}");
+        sb.AppendLine();
+
+        if (!string.IsNullOrEmpty(finding.Description))
+        {
+            sb.AppendLine(finding.Description);
+            sb.AppendLine();
+        }
+
+        if (finding.ModernizationContext != null && finding.ModernizationContext.Count > 0)
+        {
+            sb.AppendLine("**Modernization Details:**");
+            if (finding.ModernizationContext.TryGetValue("legacyPattern", out var legacy))
+                sb.AppendLine($"- **Current Pattern:** {legacy}");
+            if (finding.ModernizationContext.TryGetValue("modernAlternative", out var modern))
+                sb.AppendLine($"- **Modern Alternative:** {modern}");
+            if (finding.ModernizationContext.TryGetValue("introducedIn", out var version))
+                sb.AppendLine($"- **Available Since:** {version}");
+            if (finding.ModernizationContext.TryGetValue("effort", out var effort))
+                sb.AppendLine($"- **Migration Effort:** {effort}");
+            if (finding.ModernizationContext.TryGetValue("benefits", out var benefits) && benefits is List<string> benefitList)
+                sb.AppendLine($"- **Benefits:** {string.Join(", ", benefitList)}");
+            sb.AppendLine();
+        }
+
+        if (!string.IsNullOrEmpty(finding.Recommendation))
+        {
+            sb.AppendLine($"**Recommendation:** {finding.Recommendation}");
+            sb.AppendLine();
+        }
+
+        if (finding.FixExample != null && !string.IsNullOrEmpty(finding.FixExample.After))
+        {
+            sb.AppendLine("**Modern Alternative:**");
+            sb.AppendLine("```");
+            sb.AppendLine(finding.FixExample.After);
+            sb.AppendLine("```");
+            sb.AppendLine();
+        }
+
+        sb.AppendLine();
     }
 
     internal string? GetCachedReport(string repo_path)

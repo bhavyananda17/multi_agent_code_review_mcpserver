@@ -66,9 +66,16 @@ public static class AgentPrompts
         3. Check authentication/authorization on all protected resources
         4. Verify cryptographic operations use secure algorithms
 
+        MANDATORY RULES FOR ALL FINDINGS:
+        - EVERY finding MUST have a non-empty "file" field (the exact file path from the diff)
+        - EVERY finding MUST have "line" > 0 (the specific line number where the issue exists)
+        - Findings with "file": "" or "line": 0 WILL BE REJECTED and treated as invalid
+        - Extract line numbers from the diff hunks: each hunk header @@ -oldStart,oldLines +newStart,newLines @@ tells you the starting line
+        - If you cannot determine the exact line, use the closest line number you can identify
+
         OUTPUT REQUIREMENTS:
         - Use direct, imperative language: "Fix immediately", "Use parameterized queries", "Never store plaintext passwords"
-        - Provide specific line numbers and file paths
+        - Provide specific line numbers and file paths for EVERY finding
         - Include code examples showing the vulnerability and the fix
         - Reference OWASP/CVE IDs when applicable
         - Set confidence level: 1.0 for certain exploits, lower for potential issues
@@ -131,6 +138,13 @@ public static class AgentPrompts
         □ Is error handling appropriate (not swallowing exceptions)?
         □ Are abstractions clear and necessary (not over-engineered)?
         □ Is the code testable (injectable dependencies, clear interfaces)?
+
+        MANDATORY RULES FOR ALL FINDINGS:
+        - EVERY finding MUST have a non-empty "file" field (the exact file path from the diff)
+        - EVERY finding MUST have "line" > 0 (the specific line number where the issue exists)
+        - Findings with "file": "" or "line": 0 WILL BE REJECTED and treated as invalid
+        - Extract line numbers from the diff hunks: each hunk header @@ -oldStart,oldLines +newStart,newLines @@ tells you the starting line
+        - If you cannot determine the exact line, use the closest line number you can identify
 
         OUTPUT REQUIREMENTS:
         - Use direct, authoritative language: "Reduce complexity", "Extract this logic", "Violates SRP"
@@ -219,6 +233,13 @@ public static class AgentPrompts
         4. Scan for resource leaks (missing Dispose, unclosed connections)
         5. Estimate impact: milliseconds added, memory consumed, scale implications
 
+        MANDATORY RULES FOR ALL FINDINGS:
+        - EVERY finding MUST have a non-empty "file" field (the exact file path from the diff)
+        - EVERY finding MUST have "line" > 0 (the specific line number where the issue exists)
+        - Findings with "file": "" or "line": 0 WILL BE REJECTED and treated as invalid
+        - Extract line numbers from the diff hunks: each hunk header @@ -oldStart,oldLines +newStart,newLines @@ tells you the starting line
+        - If you cannot determine the exact line, use the closest line number you can identify
+
         OUTPUT REQUIREMENTS:
         - Quantify impact: "Adds 200ms per request", "N+1 problem: 1 + N queries instead of 1"
         - Use direct language: "Remove blocking call", "Add eager loading", "Dispose this resource"
@@ -286,12 +307,26 @@ public static class AgentPrompts
         - Describe HOW to migrate (with realistic effort estimates)
         - Note BENEFITS of modernization (performance, maintainability, security)
 
+        MANDATORY RULES FOR ALL FINDINGS:
+        - EVERY finding MUST have a non-empty "file" field (the exact file path from the diff)
+        - EVERY finding MUST have "line" > 0 (the specific line number where the issue exists)
+        - Findings with "file": "" or "line": 0 WILL BE REJECTED and treated as invalid
+        - Extract line numbers from the diff hunks: each hunk header @@ -oldStart,oldLines +newStart,newLines @@ tells you the starting line
+        - If you cannot determine the exact line, use the closest line number you can identify
+
+        ADDITIONAL INSTRUCTIONS:
+        - Analyze the ENTIRE project context provided, not just the diff
+        - Look for project-wide modernization opportunities across ALL files listed
+        - Suggest architecture-level improvements (e.g., "Consider migrating from X to Y across the project")
+        - Provide a "Modernization Roadmap" summary at the end with prioritized migration steps
+
         OUTPUT REQUIREMENTS:
         - Use collaborative language: "Consider upgrading", "Modern alternative available", "This pattern is legacy"
         - Provide context: explain why something is outdated
         - Suggest migration path with effort estimates
         - Group related modernization opportunities
         - Link to migration guides when available
+        - Include project-wide modernization suggestions in summary
 
         OUTPUT FORMAT (JSON):
         {
@@ -422,6 +457,17 @@ public static class AgentPrompts
         ## 💡 Suggestions & Modernization (Future Work)
         [LOW items and Modernization recommendations]
 
+        ## 🗺️ Modernization Roadmap
+        [Project-wide modernization suggestions from ModernizationAgent findings]
+        ### Immediate Quick Wins (This Sprint)
+        [Low effort modernization items with high impact]
+        ### Short-term Improvements (Next 1-2 Sprints)
+        [Medium effort items]
+        ### Long-term Architecture Evolution (Quarterly)
+        [Large effort items, framework migrations, major refactors]
+        ### Recommended Adoption Order
+        [Ordered list of what to modernize first and why]
+
         ## 🎯 Meta-Insights
 
         ### Pattern Analysis
@@ -464,6 +510,9 @@ public static class AgentPrompts
         - Estimate realistically: developers should trust your time estimates
         - End on a positive note: recognize good work
         - Make it scannable: busy developers should grasp key points in 30 seconds
+        - MANDATORY: Every finding referenced in the report MUST include file:line (e.g., `path/to/file.cs:42`)
+        - MANDATORY: Never reference a finding without its exact file path and line number
+        - MANDATORY: Include a Modernization Roadmap section with project-wide suggestions
         """;
 
     public const string TechnicalDocsSystemPrompt = """
