@@ -41,9 +41,9 @@ graph TB
     end
 
     subgraph "External"
-        SA -->|"HTTP"| Groq1[Groq API<br/>Account 1]
-        PA -->|"HTTP"| Groq2[Groq API<br/>Account 2]
-        MA -->|"HTTP"| Groq3[Groq API<br/>Account 3]
+        SA -->|"HTTP"| Groq1[Groq API]
+        PA -->|"HTTP"| Groq2[Groq API]
+        MA -->|"HTTP"| Groq3[Groq API]
         Triage -->|"HTTP"| Groq0[Groq API<br/>8B Model]
     end
 
