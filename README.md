@@ -4,7 +4,6 @@
 
 A production-grade multi-agent code review system built with Microsoft AutoGen and Groq's Llama models. Analyzes C# projects with specialized agents for security, performance, and modernization analysis. Exposed as an **MCP server** for seamless integration with OpenCode, VS Code, Claude Desktop, and other MCP clients.
 
-**Status:** ✅ Core pipeline fully functional | 🚧 Python/Ruff integration (planned)
 
 ---
 
@@ -294,4 +293,4 @@ MODEL_TRIAGE=llama-3.1-8b-instant
 
 ## License
 
-MIT
+
