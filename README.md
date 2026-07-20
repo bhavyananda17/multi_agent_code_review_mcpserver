@@ -10,357 +10,1153 @@ A production-grade multi-agent code review system built with Microsoft AutoGen a
 
 ## Table of Contents
 
-1. [How It Works](#how-it-works)
-2. [Current Architecture](#current-architecture)
-3. [Python/Ruff Integration](#pythonruff-integration)
-4. [The 4 MCP Tools](#the-4-mcp-tools)
-5. [Pipeline Stages](#pipeline-stages)
-6. [Setup & Configuration](#setup--configuration)
-7. [Usage Examples](#usage-examples)
-8. [Performance Metrics](#performance-metrics)
-9. [Status & Future Work](#status--future-work)
+1. [How It Works — Pipeline Mind Map](#how-it-works--pipeline-mind-map)
+2. [Current Architecture — System Mind Map](#current-architecture--system-mind-map)
+3. [Python/Ruff Integration — Future Implementation Mind Map](#pythonruff-integration--future-implementation-mind-map)
+4. [The 4 MCP Tools — Tool Interaction Mind Map](#the-4-mcp-tools--tool-interaction-mind-map)
+5. [Pipeline Stages — Detailed Breakdown](#pipeline-stages--detailed-breakdown)
+6. [The 6 Agents — Agent Hierarchy Mind Map](#the-6-agents--agent-hierarchy-mind-map)
+7. [Setup & Configuration](#setup--configuration)
+8. [Usage Examples](#usage-examples)
+9. [Performance Metrics — Cost & Timing Mind Map](#performance-metrics--cost--timing-mind-map)
+10. [Status & Future Work — Roadmap Mind Map](#status--future-work--roadmap-mind-map)
+11. [Architecture Decisions — Design Mind Map](#architecture-decisions--design-mind-map)
 
 ---
 
-## How It Works
+## How It Works — Pipeline Mind Map
 
 ```
-User Command: dotnet run -- review /repo HEAD
-        ↓
-Stage 1: FILTER (Git diff + Roslyn)
-  ├─ Identify changed files
-  ├─ Build dependency graph
-  └─ Select top 30 relevant files
-        ↓
-Stage 2: TRIAGE (8B LLM, 2-3s)
-  ├─ Analyze: what type of changes?
-  └─ Route: which agents should review?
-        ↓
-Stage 3: PARALLEL SPECIALISTS (70B LLM, 5-8s)
-  ├─ SecurityAgent  → find vulnerabilities
-  ├─ PerformanceAgent → find bottlenecks
-  └─ ModernizationAgent → find tech debt
-        ↓
-Stage 4: SYNTHESIS (C# Dedup, <1ms)
-  ├─ Group findings by file+line
-  ├─ Boost if 2+ agents agree
-  └─ Sort by severity
-        ↓
-Stage 5: PYTHON ANALYSIS [IF .py files exist]
-  ├─ Auto-detect Python files
-  ├─ Call Python/Ruff Service
-  └─ Merge Python findings
-        ↓
-OUTPUT: Markdown report with all findings
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                        USER INVOCATION                                          │
+│                                                                                 │
+│  CLI:     dotnet run -- review /repo HEAD                                       │
+│  MCP:     review_repo(repo_path="/repo", commit_hash="HEAD")                    │
+│  OpenCode: @code-review-agents Review this commit                               │
+└───────────────────────────────────────┬─────────────────────────────────────────┘
+                                        │
+                                        ▼
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  STAGE 1: FILTER                          ⏱️ 1-2s  |  🔧 C# (no LLM)           │
+│                                                                                 │
+│  ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐           │
+│  │  Git Diff        │────▶│  File Filter     │────▶│  Roslyn Graph   │           │
+│  │  GetDiffAsync()  │     │  Extension       │     │  Dependency     │           │
+│  │  GetChangedFiles │     │  Whitelist       │     │  Analysis       │           │
+│  └─────────────────┘     └─────────────────┘     └────────┬────────┘           │
+│                                                            │                    │
+│                       ┌────────────────────────────────────┘                    │
+│                       ▼                                                         │
+│           ┌───────────────────────────┐                                        │
+│           │  BFS Relevance Scoring    │                                        │
+│           │  • Reverse dependency walk│                                        │
+│           │  • Max 30 files           │                                        │
+│           │  • Source extensions only │                                        │
+│           └─────────────┬─────────────┘                                        │
+│                         │                                                       │
+└─────────────────────────┼───────────────────────────────────────────────────────┘
+                          │
+            ╔═════════════╧═════════════╗
+            ║   ChangedFiles.Count == 0? ║
+            ╠═══════════════════════════╣
+            ║                           ║
+            ║  YES ──▶ Return early     ║
+            ║  "No relevant files found"║
+            ║  Pipeline STOPS here      ║
+            ║                           ║
+            ║  NO ───▶ Continue ▼       ║
+            ╚═══════════════════════════╝
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  STAGE 2: TRIAGE                        ⏱️ 2-3s  |  🧠 LLM (8B)               │
+│                                                                                 │
+│  ┌──────────────────────────────────────────────────────────────────┐           │
+│  │  TriageAgent (llama-3.1-8b-instant)                             │           │
+│  │                                                                  │           │
+│  │  INPUT:  Changed files + diff summary + dependency graph         │           │
+│  │                                                                  │           │
+│  │  ┌──────────────────────────────────────────────────────────┐   │           │
+│  │  │  LLM DECISION: Which agents should review this diff?     │   │           │
+│  │  │                                                          │   │           │
+│  │  │  Possible outputs:                                        │   │           │
+│  │  │  ["SECURITY", "PERFORMANCE", "MODERNIZATION"]            │   │           │
+│  │  │  ["SECURITY"]              ← security-focused changes    │   │           │
+│  │  │  ["PERFORMANCE"]           ← database/service changes    │   │           │
+│  │  │  ["MODERNIZATION"]         ← legacy code patterns        │   │           │
+│  │  │  [DEFAULT: ALL 3]          ← fallback on parse failure  │   │           │
+│  │  └──────────────────────────────────────────────────────────┘   │           │
+│  │                                                                  │           │
+│  │  OUTPUT: TriageResult                                            │           │
+│  │  { Classifications, RouteTo[], Priority, Reasoning }            │           │
+│  └──────────────────────────────────────────────────────────────────┘           │
+└─────────────────────────────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  STAGE 3: SPECIALIST AGENTS             ⏱️ 5-8s  |  🧠 LLM (70B) × 3 parallel  │
+│                                                                                 │
+│  ┌─────────────┐   ┌─────────────┐   ┌─────────────┐                           │
+│  │  Security   │   │ Performance │   │Modernization│                           │
+│  │  Agent      │   │ Agent       │   │ Agent       │                           │
+│  │  (70B)      │   │ (70B)       │   │ (70B)       │                           │
+│  ├─────────────┤   ├─────────────┤   ├─────────────┤                           │
+│  │ • SQLi      │   │ • N+1       │   │ • SOLID     │                           │
+│  │ • XSS       │   │ • Blocking  │   │ • Legacy    │                           │
+│  │ • Secrets   │   │ • Memory    │   │ • Complexity│                           │
+│  │ • Crypto    │   │ • O(n²)     │   │ • Tech Debt │                           │
+│  │ • Auth      │   │ • Caching   │   │ • Patterns  │                           │
+│  └──────┬──────┘   └──────┬──────┘   └──────┬──────┘                           │
+│         │                 │                 │                                   │
+│         │    ╔════════════╧═════════════╗   │                                   │
+│         │    ║  Task.WhenAll (PARALLEL) ║   │                                   │
+│         │    ║  All 3 run simultaneously║   │                                   │
+│         │    ║  No 2s delay between them║   │                                   │
+│         │    ╚════════════╤═════════════╝   │                                   │
+│         │                 │                 │                                   │
+│         ▼                 ▼                 ▼                                   │
+│  ┌─────────────────────────────────────────────────────┐                       │
+│  │  RATE LIMIT RETRY LOGIC                             │                       │
+│  │  • 3 attempts max per agent                         │                       │
+│  │  • Only retries on HTTP 429                         │                       │
+│  │  • Backoff: 15s → 30s                               │                       │
+│  │  • Final attempt: no catch (throws on failure)      │                       │
+│  └─────────────────────────────────────────────────────┘                       │
+│                                                                                 │
+│  OUTPUT: List<(agentName, AgentResult)>                                         │
+│  Each AgentResult contains: List<Finding> + summary                            │
+└─────────────────────────────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  STAGE 4: C# SYNTHESIS (DEDUP)         ⏱️ <1ms   |  🔧 C# (no LLM)            │
+│                                                                                 │
+│  ┌──────────────────────────────────────────────────────────────────┐           │
+│  │  SynthesizeFindings() — PURE C# LOGIC, NOT AN LLM CALL         │           │
+│  │                                                                  │           │
+│  │  1. Tag each finding with agent name                             │           │
+│  │  2. Group by (File, Line)                                        │           │
+│  │                                                                  │           │
+│  │  ┌──────────────────────────────────────────────────────────┐   │           │
+│  │  │  PER GROUP:                                               │   │           │
+│  │  │                                                           │   │           │
+│  │  │  Single finding ──▶ Pass through as-is                    │   │           │
+│  │  │                                                           │   │           │
+│  │  │  Same agent, multiple matches ──▶ Keep HIGHEST severity   │   │           │
+│  │  │                                                           │   │           │
+│  │  │  DIFFERENT agents agree on same line ──▶ 🚀 BOOST TO     │   │           │
+│  │  │  CRITICAL + merge messages + combine recommendations     │   │           │
+│  │  └──────────────────────────────────────────────────────────┘   │           │
+│  │                                                                  │           │
+│  │  3. Sort: Severity ↓ → File → Line                               │           │
+│  │  4. Build summary: counts per severity + cross-agent boosts     │           │
+│  └──────────────────────────────────────────────────────────────────┘           │
+│                                                                                 │
+│  OUTPUT: ReviewOutput { Context, AgentResult (sorted findings + summary) }     │
+└─────────────────────────────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  OUTPUT: MARKDOWN REPORT                                                        │
+│                                                                                 │
+│  ┌──────────────────────────────────────────────────────────────────┐           │
+│  │  FormatReport() in CodeReviewMcpTools.cs                        │           │
+│  │                                                                  │           │
+│  │  Sections:                                                       │           │
+│  │  ├── Executive Summary (counts, affected files, effort)          │           │
+│  │  ├── Critical Issues (must fix before merge)                     │           │
+│  │  ├── High Priority (fix soon)                                    │           │
+│  │  ├── Medium Priority (address this sprint)                       │           │
+│  │  ├── Low Priority (suggestions)                                  │           │
+│  │  ├── Modernization Roadmap                                       │           │
+│  │  ├── Meta-Insights (pattern analysis, fix order, debt score)     │           │
+│  │  ├── Positive Findings                                           │           │
+│  │  └── Affected Areas Summary (per-file breakdown)                 │           │
+│  └──────────────────────────────────────────────────────────────────┘           │
+│                                                                                 │
+│  CACHING:                                                                       │
+│  ├── _pipelineCache[repo_path] = ReviewOutput (in-memory)                      │
+│  ├── _reportCache[repo_path] = markdown string (in-memory)                      │
+│  └── {repo_path}/.codereview/last_report.md (on-disk)                           │
+└─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Current Architecture
+## Current Architecture — System Mind Map
 
 ### The 5 Projects
 
-| Project | Purpose |
-|---------|---------|
-| **Core** | Models, interfaces, prompts, config |
-| **Agents** | AutoGen agent implementations (Triage, 3 Specialists, Docs, Onboarding) |
-| **Orchestration** | Pipeline logic, DI, Git/Roslyn tools |
-| **Host** | CLI entry point (commands: review, ask, docs) |
-| **McpServer** | MCP server for OpenCode/Claude integration (4 tools) |
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                     MultiAgentCodeReview — Solution Structure                    │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐    │
+│  │                        MultiAgentCodeReview.Core                        │    │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌───────────┐  │    │
+│  │  │ Interfaces   │  │ Models       │  │ Prompts      │  │ Config    │  │    │
+│  │  │ IAgent       │  │ Finding      │  │ AgentPrompts │  │ Pipeline  │  │    │
+│  │  │ ITriageAgent │  │ ReviewOutput │  │              │  │ Config    │  │    │
+│  │  │ ISpecialist  │  │ PipelineCtx  │  │              │  │ ModelCfg  │  │    │
+│  │  │ ISynthesis   │  │ TriageResult │  │              │  │           │  │    │
+│  │  │ IDocumentation│ │ AgentResult  │  │              │  │           │  │    │
+│  │  │ IOnboarding  │  │ GitDiff      │  │              │  │           │  │    │
+│  │  │ ILlmClient   │  │ BlameLine    │  │              │  │           │  │    │
+│  │  │ IKnowledge   │  │ Commit       │  │              │  │           │  │    │
+│  │  │ ICodeAnalysis│  │              │  │              │  │           │  │    │
+│  │  │ IGitOperations│ │              │  │              │  │           │  │    │
+│  │  └──────────────┘  └──────────────┘  └──────────────┘  └───────────┘  │    │
+│  └─────────────────────────────────────────────────────────────────────────┘    │
+│         ▲                                    ▲                                   │
+│         │ REFERENCES                         │ REFERENCES                       │
+│         │                                    │                                   │
+│  ┌──────┴───────────────────────┐   ┌───────┴──────────────────────────────┐   │
+│  │  MultiAgentCodeReview.Agents │   │  MultiAgentCodeReview.Orchestration  │   │
+│  │                              │   │                                      │   │
+│  │  ┌────────────────────────┐  │   │  ┌────────────────────────────────┐  │   │
+│  │  │  AgentFactory          │  │   │  │  CodeReviewPipeline            │  │   │
+│  │  │  (Singleton)           │──┼──▶│  │  RunReviewAsync()              │  │   │
+│  │  │  Creates all agents    │  │   │  │  SynthesizeFindings()          │  │   │
+│  │  └────────────────────────┘  │   │  └────────────────────────────────┘  │   │
+│  │                              │   │                                      │   │
+│  │  ┌────────────────────────┐  │   │  ┌────────────────────────────────┐  │   │
+│  │  │  BaseSpecialistAgent   │  │   │  │  FilterStage                   │  │   │
+│  │  │  (Abstract)            │  │   │  │  Git diff → Filter → Roslyn    │  │   │
+│  │  │  BuildPrompt           │  │   │  └────────────────────────────────┘  │   │
+│  │  │  ParseResponse         │  │   │                                      │   │
+│  │  │  InjectLineNumbers     │  │   │  ┌────────────────────────────────┐  │   │
+│  │  └────────┬───────────────┘  │   │  │  CodeAnalysisTool              │  │   │
+│  │           │                  │   │  │  (Singleton)                    │  │   │
+│  │  ┌────────┴───────────────┐  │   │  │  Roslyn dependency graph       │  │   │
+│  │  │                        │  │   │  │  Cyclomatic complexity         │  │   │
+│  │  │  ┌──────────────────┐  │  │   │  │  Code smell detection         │  │   │
+│  │  │  │ SecurityAgent    │  │  │   │  └────────────────────────────────┘  │   │
+│  │  │  │ TriggerCategories│  │  │   │                                      │   │
+│  │  │  │ Security/        │  │  │   │  ┌────────────────────────────────┐  │   │
+│  │  │  │ Auth/            │  │  │   │  │  GitOperationsTool             │  │   │
+│  │  │  │ Crypto/          │  │  │   │  │  (NOT in DI — created via      │  │   │
+│  │  │  │ Validation/      │  │  │   │  │   new GitOperationsTool(path)) │  │   │
+│  │  │  └──────────────────┘  │  │   │  │  GetDiffAsync()               │  │   │
+│  │  │                        │  │   │  │  GetChangedFilesAsync()        │  │   │
+│  │  │  ┌──────────────────┐  │  │   │  │  GetBlameAsync()              │  │   │
+│  │  │  │ PerformanceAgent │  │  │   │  │  GetFileHistoryAsync()        │  │   │
+│  │  │  │ TriggerCategories│  │  │   │  └────────────────────────────────┘  │   │
+│  │  │  │ Database/        │  │  │   │                                      │   │
+│  │  │  │ Repository/      │  │  │   │  ┌────────────────────────────────┐  │   │
+│  │  │  │ DataAccess/      │  │  │   │  │  DI Registration               │  │   │
+│  │  │  │ Services/        │  │  │   │  │  AddMultiAgentCodeReview()     │  │   │
+│  │  │  └──────────────────┘  │  │   │  │  AgentFactory  → Singleton     │  │   │
+│  │  │                        │  │   │  │  CodeAnalysis  → Singleton     │  │   │
+│  │  │  ┌──────────────────┐  │  │   │  │  Pipeline       → Transient    │  │   │
+│  │  │  │ModernizationAgent│  │  │   │  │  FilterStage    → Transient    │  │   │
+│  │  │  │ TriggerCategories│  │  │   │  └────────────────────────────────┘  │   │
+│  │  │  │ Legacy/          │  │  │   │                                      │   │
+│  │  │  │ Old/             │  │  │   │                                      │   │
+│  │  │  │ Deprecated/      │  │  │   │                                      │   │
+│  │  │  └──────────────────┘  │  │   │                                      │   │
+│  │  │                        │  │   │                                      │   │
+│  │  │  ┌──────────────────┐  │  │   │                                      │   │
+│  │  │  │ TriageAgent      │  │  │   │                                      │   │
+│  │  │  │ ClassifyAsync()  │  │  │   │                                      │   │
+│  │  │  │ Routes to 1-3    │  │  │   │                                      │   │
+│  │  │  │ specialist agents│  │  │   │                                      │   │
+│  │  │  └──────────────────┘  │  │   │                                      │   │
+│  │  │                        │  │   │                                      │   │
+│  │  │  ┌──────────────────┐  │  │   │                                      │   │
+│  │  │  │ DocumentationAgent│ │  │   │                                      │   │
+│  │  │  │ GenerateDocAsync │  │  │   │                                      │   │
+│  │  │  └──────────────────┘  │  │   │                                      │   │
+│  │  │                        │  │   │                                      │   │
+│  │  │  ┌──────────────────┐  │  │   │                                      │   │
+│  │  │  │ OnboardingAgent  │  │  │   │                                      │   │
+│  │  │  │ AnswerAsync()    │  │  │   │                                      │   │
+│  │  │  └──────────────────┘  │  │   │                                      │   │
+│  │  │                        │  │   │                                      │   │
+│  │  │  ┌──────────────────┐  │  │   │                                      │   │
+│  │  │  │ SynthesisAgent   │  │  │   │                                      │   │
+│  │  │  │ ⚠️ ORPHANED      │  │  │   │                                      │   │
+│  │  │  │ (exists but not  │  │  │   │                                      │   │
+│  │  │  │  used in pipeline)│  │  │   │                                      │   │
+│  │  │  └──────────────────┘  │  │   │                                      │   │
+│  │  │                        │  │   │                                      │   │
+│  │  │  ┌──────────────────┐  │  │   │                                      │   │
+│  │  │  │ LogicAgent       │  │  │   │                                      │   │
+│  │  │  │ ⚠️ ORPHANED      │  │  │   │                                      │   │
+│  │  │  │ (exists but triage│ │  │   │                                      │   │
+│  │  │  │  never routes to) │  │  │   │                                      │   │
+│  │  │  └──────────────────┘  │  │   │                                      │   │
+│  │  └────────────────────────┘  │   │                                      │   │
+│  └──────────────────────────────┘   └──────────────────────────────────────┘   │
+│         ▲                                    ▲                                   │
+│         │ REFERENCES                         │ REFERENCES                       │
+│         │                                    │                                   │
+│  ┌──────┴────────────────────────────────────┴──────────────────────────────┐   │
+│  │                                                                          │   │
+│  │  ┌──────────────────────────────┐    ┌────────────────────────────────┐  │   │
+│  │  │  MultiAgentCodeReview.Host   │    │  MultiAgentCodeReview.McpServer│  │   │
+│  │  │                              │    │                                │  │   │
+│  │  │  ┌────────────────────────┐  │    │  ┌──────────────────────────┐  │  │   │
+│  │  │  │  Program.cs            │  │    │  │  Program.cs              │  │  │   │
+│  │  │  │  CLI commands:         │  │    │  │  MCP server with stdio   │  │  │   │
+│  │  │  │  • review              │  │    │  │  transport               │  │  │   │
+│  │  │  │  • ask                 │  │    │  └──────────────────────────┘  │  │   │
+│  │  │  │  • docs                │  │    │                                │  │   │
+│  │  │  └────────────────────────┘  │    │  ┌──────────────────────────┐  │  │   │
+│  │  │                              │    │  │  CodeReviewMcpTools      │  │  │   │
+│  │  │  ┌────────────────────────┐  │    │  │  4 MCP tools:            │  │  │   │
+│  │  │  │  DI Setup              │  │    │  │  • review_repo           │  │  │   │
+│  │  │  │  AddMultiAgentCodeReview│ │    │  │  • ask_codebase          │  │  │   │
+│  │  │  └────────────────────────┘  │    │  │  • get_last_report       │  │  │   │
+│  │  │                              │    │  │  • generate_docs         │  │  │   │
+│  │  │  Commands:                   │    │  └──────────────────────────┘  │  │   │
+│  │  │  • review /repo HEAD        │    │                                │  │   │
+│  │  │  • ask /repo "question"     │    │  ┌──────────────────────────┐  │  │   │
+│  │  │  • docs /repo HEAD          │    │  │  Caching:                 │  │  │   │
+│  │  │                              │    │  │  • _pipelineCache (static)│  │  │   │
+│  │  └──────────────────────────────┘    │  │  • _reportCache (static) │  │  │   │
+│  │                                      │  │  • .codereview/last.md   │  │  │   │
+│  └──────────────────────────────────────┘  └──────────────────────────┘  │  │   │
+│                                                                          │   │   │
+│  ┌──────────────────────────────────────────────────────────────────────┐│   │   │
+│  │                    EXTERNAL SERVICES                                 ││   │   │
+│  │                                                                      ││   │   │
+│  │  ┌──────────────────────────┐    ┌────────────────────────────────┐ ││   │   │
+│  │  │  Groq API                │    │  Python/Ruff Service           │ ││   │   │
+│  │  │  (OpenAI-compatible)     │    │  (NOT YET IMPLEMENTED)         │ ││   │   │
+│  │  │                          │    │                                │ ││   │   │
+│  │  │  Models:                 │    │  Future:                       │ ││   │   │
+│  │  │  • llama-3.1-8b-instant  │    │  • ruff check --output json   │ ││   │   │
+│  │  │    (triage, onboarding)  │    │  • HTTP endpoint on :5000     │ ││   │   │
+│  │  │  • llama-3.3-70b-versatile│   │  • Finding conversion         │ ││   │   │
+│  │  │    (security, perf, etc) │    │  • Merge with C# findings     │ ││   │   │
+│  │  └──────────────────────────┘    └────────────────────────────────┘ ││   │   │
+│  └──────────────────────────────────────────────────────────────────────┘│   │   │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
 
-### Data Flow
+### The 6 Agents — Agent Hierarchy Mind Map
 
 ```
-┌─────────────────────────────────────────────────────┐
-│  CLI / MCP Client                                   │
-│  (User runs: dotnet run -- review /repo HEAD)      │
-└──────────────┬──────────────────────────────────────┘
-               │
-               ↓
-┌──────────────────────────────────┐
-│  CodeReviewPipeline              │
-├──────────────────────────────────┤
-│ 1. FilterStage                   │
-│ 2. TriageAgent (8B)              │
-│ 3. Parallel Specialists (70B)    │
-│ 4. C# Synthesis (Dedup)          │
-│ 5. Python/Ruff Detection         │
-└──────────────┬───────────────────┘
-               │
-               ↓
-┌──────────────────────────────────┐
-│  Groq API                        │
-│  (Llama 3.1-8B and 3.3-70B)      │
-└──────────────────────────────────┘
-
-Plus (if Python files exist):
-               ↓
-┌──────────────────────────────────┐
-│  Python/Ruff Service             │
-│  (Separate process, local)       │
-└──────────────────────────────────┘
-
-Final output:
-               ↓
-            Report
-      (markdown + JSON)
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                        AGENT HIERARCHY & RELATIONSHIPS                           │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐    │
+│  │                                                                         │    │
+│  │                    ┌───────────────────────────────┐                    │    │
+│  │                    │         IAgent (Base)          │                    │    │
+│  │                    │  • Name                        │                    │    │
+│  │                    │  • AnalyzeAsync()              │                    │    │
+│  │                    └───────────────┬───────────────┘                    │    │
+│  │                                    │                                    │    │
+│  │          ┌─────────────────────────┼─────────────────────────┐          │    │
+│  │          │                         │                         │          │    │
+│  │          ▼                         ▼                         ▼          │    │
+│  │  ┌───────────────┐        ┌───────────────┐        ┌───────────────┐  │    │
+│  │  │  ITriageAgent │        │ISpecialistAgent│        │IDocumentation│  │    │
+│  │  │               │        │               │        │   Agent      │  │    │
+│  │  │ ClassifyAsync │        │TriggerCategories│       │ GenerateDoc  │  │    │
+│  │  └───────┬───────┘        └───────┬───────┘        │  Async       │  │    │
+│  │          │                        │                └───────────────┘  │    │
+│  │          ▼                        ▼                                   │    │
+│  │  ┌───────────────┐        ┌───────────────┐        ┌───────────────┐  │    │
+│  │  │  TriageAgent  │        │BaseSpecialist │        │IOnboarding    │  │    │
+│  │  │               │        │   Agent       │        │   Agent       │  │    │
+│  │  │ Routes to:    │        │ (Abstract)    │        │               │  │    │
+│  │  │ • Security    │        │ • BuildPrompt │        │ AnswerAsync   │  │    │
+│  │  │ • Performance │        │ • ParseResp   │        └───────────────┘  │    │
+│  │  │ • Modernization│       │ • InjectLines │                           │    │
+│  │  └───────────────┘        └───────┬───────┘        ┌───────────────┐  │    │
+│  │                                    │                │ISynthesis     │  │    │
+│  │          ┌─────────────────────────┼──────┐         │   Agent       │  │    │
+│  │          │                         │      │         │               │  │    │
+│  │          ▼                         ▼      ▼         │ SynthesizeAsync│ │    │
+│  │  ┌───────────────┐        ┌───────────────┐        │               │  │    │
+│  │  │SecurityAgent  │        │Performance    │        │ ⚠️ ORPHANED   │  │    │
+│  │  │               │        │   Agent       │        │ (exists but   │  │    │
+│  │  │ TriggerCategories:     │               │        │  never called │  │    │
+│  │  │ Security/     │        │ TriggerCategories:     │  in pipeline) │  │    │
+│  │  │ Auth/         │        │ Database/     │        └───────────────┘  │    │
+│  │  │ Crypto/       │        │ Repository/   │                           │    │
+│  │  │ Validation/   │        │ DataAccess/   │        ┌───────────────┐  │    │
+│  │  │               │        │ Services/     │        │  LogicAgent   │  │    │
+│  │  │ Finds:        │        │               │        │               │  │    │
+│  │  │ • SQLi        │        │ Finds:        │        │ TriggerCategories:     │
+│  │  │ • XSS         │        │ • N+1         │        │ Controllers/  │  │    │
+│  │  │ • Secrets     │        │ • Blocking    │        │ Services/     │  │    │
+│  │  │ • Crypto      │        │ • Memory      │        │ Models/       │  │    │
+│  │  │ • Auth        │        │ • O(n²)       │        │ Logic/        │  │    │
+│  │  └───────────────┘        │ • Caching     │        │               │  │    │
+│  │                           └───────────────┘        │ ⚠️ ORPHANED   │  │    │
+│  │                                    │                │ (triage never│  │    │
+│  │                                    ▼                │  routes to)  │  │    │
+│  │                           ┌───────────────┐        └───────────────┘  │    │
+│  │                           │Modernization  │                           │    │
+│  │                           │   Agent       │                           │    │
+│  │                           │               │                           │    │
+│  │                           │ TriggerCategories:                        │    │
+│  │                           │ Legacy/        │                          │    │
+│  │                           │ Old/           │                          │    │
+│  │                           │ Deprecated/    │                          │    │
+│  │                           │               │                           │    │
+│  │                           │ Finds:        │                           │    │
+│  │                           │ • SOLID       │                           │    │
+│  │                           │ • Legacy      │                           │    │
+│  │                           │ • Complexity  │                           │    │
+│  │                           │ • Tech Debt   │                           │    │
+│  │                           └───────────────┘                           │    │
+│  │                                                                         │    │
+│  └─────────────────────────────────────────────────────────────────────────┘    │
+│                                                                                 │
+│  ═══════════════════════════════════════════════════════════════════════════   │
+│  AGENT CREATION FLOW                                                            │
+│  ═══════════════════════════════════════════════════════════════════════════   │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐    │
+│  │                                                                         │    │
+│  │  AgentFactory (Singleton)                                               │    │
+│  │  ├── CreateTriageAgent()                                               │    │
+│  │  │   └── Model: llama-3.1-8b-instant                                  │    │
+│  │  │   └── Temperature: 0.3                                              │    │
+│  │  │   └── MaxTokens: 1024                                               │    │
+│  │  │                                                                      │    │
+│  │  ├── CreateSecurityAgent()                                             │    │
+│  │  │   └── Model: llama-3.3-70b-versatile                               │    │
+│  │  │   └── Temperature: 0.1                                              │    │
+│  │  │   └── MaxTokens: 4096                                               │    │
+│  │  │                                                                      │    │
+│  │  ├── CreatePerformanceAgent()                                          │    │
+│  │  │   └── Model: llama-3.3-70b-versatile                               │    │
+│  │  │   └── Temperature: 0.1                                              │    │
+│  │  │   └── MaxTokens: 4096                                               │    │
+│  │  │                                                                      │    │
+│  │  ├── CreateModernizationAgent()                                        │    │
+│  │  │   └── Model: llama-3.3-70b-versatile                               │    │
+│  │  │   └── Temperature: 0.1                                              │    │
+│  │  │   └── MaxTokens: 4096                                               │    │
+│  │  │                                                                      │    │
+│  │  ├── CreateDocumentationAgent()                                        │    │
+│  │  │   └── Model: llama-3.1-8b-instant                                  │    │
+│  │  │   └── Temperature: 0.5                                              │    │
+│  │  │   └── MaxTokens: 4096                                               │    │
+│  │  │                                                                      │    │
+│  │  ├── CreateOnboardingAgent()                                           │    │
+│  │  │   └── Model: llama-3.1-8b-instant                                  │    │
+│  │  │   └── Temperature: 0.3                                              │    │
+│  │  │   └── MaxTokens: 2048                                               │    │
+│  │  │                                                                      │    │
+│  │  └── CreateLogicAgent()                                                │    │
+│  │      └── Model: llama-3.3-70b-versatile                               │    │
+│  │      └── Temperature: 0.1                                              │    │
+│  │      └── MaxTokens: 4096                                               │    │
+│  │      └── ⚠️ CREATED BUT NEVER ROUTED TO                               │    │
+│  │                                                                         │    │
+│  │  All agents use:                                                        │    │
+│  │  • OpenAIChatAgent from AutoGen                                        │    │
+│  │  • Groq API (OpenAI-compatible endpoint)                               │    │
+│  │  • RegisterMessageConnector() for AutoGen integration                 │    │
+│  │  • Constructor injection of IOptions<PipelineConfig>                   │    │
+│  │                                                                         │    │
+│  └─────────────────────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────────────────────┘
 ```
-
-### The 6 Agents
-
-| Agent | Role | Model | Speed |
-|-------|------|-------|-------|
-| Triage | Route to specialists | 8B | 2-3s |
-| **Security** | Find vulnerabilities (SQLi, XSS, secrets, crypto) | 70B | 2-3s |
-| **Performance** | Find bottlenecks (N+1, blocking, memory, O(n²)) | 70B | 2-3s |
-| **Modernization** | Find tech debt (SOLID, legacy, complexity) | 70B | 2-3s |
-| Documentation | Generate README | 8B | 4-5s |
-| Onboarding | Answer Q&A | 8B | 3-4s |
 
 ---
 
-## Python/Ruff Integration
+## Python/Ruff Integration — Future Implementation Mind Map
 
-### Architecture Mind Map
-
-```
-review_repo() called with mixed repo
-        ↓
-CodeReviewPipeline.RunReviewAsync()
-        ├─ Stage 1: FilterStage
-        │   ├─ Git diff: identify all changed files
-        │   ├─ Categorize files
-        │   │   ├─ C# files (.cs, .csproj) → Go to C# pipeline
-        │   │   └─ Python files (.py) → Mark for Ruff
-        │   └─ Build Roslyn dependency graph (C# only)
-        │
-        ├─ Stage 2-4: C# Pipeline
-        │   ├─ Triage (8B)
-        │   ├─ Parallel Specialists (70B)
-        │   └─ Synthesis (Dedup)
-        │   └─ OUTPUT: C# findings
-        │
-        └─ [NEW] Python Analysis
-            ├─ Check: Any .py files in ChangedFiles?
-            ├─ YES → Call Python/Ruff Service
-            │   ├─ Service receives: repo_path, list of .py files
-            │   ├─ Service runs: ruff check --output-format json
-            │   ├─ Service parses: JSON → Finding objects
-            │   └─ Service returns: List<Finding>
-            └─ Merge Results
-                ├─ C# findings (from agents)
-                ├─ Python findings (from Ruff)
-                └─ Return combined list
-```
-
-### How It Works: Concrete Example
-
-**Input:** Mixed repository
-- 15 C# files (Controllers, Services, Models)
-- 8 Python files (API utilities, ML helpers)
-- 4 config files
-
-**Processing:**
+### Current State vs Future State
 
 ```
-FILTER STAGE:
-  Identified: 12 relevant C# files + 8 Python files
-
-TRIAGE STAGE (8B):
-  Decision: "This has security + performance issues"
-  Route to: SecurityAgent, PerformanceAgent
-
-C# ANALYSIS (Parallel):
-  SecurityAgent → Found: SQL injection (1 CRITICAL)
-  PerformanceAgent → Found: N+1 query (2 HIGH)
-  Result: 3 C# findings
-
-[Python Detection]
-  CheckedFiles: Found 8 .py files
-  Action: Call Python/Ruff Service
-
-PYTHON ANALYSIS (Ruff):
-  Ruff runs locally: ruff check *.py --output-format json
-  Found: 4 Python issues
-    - Unused import (1 MEDIUM)
-    - Line too long (2 LOW)
-    - Security pattern (1 MEDIUM)
-  Result: 4 Python findings
-
-MERGE:
-  Combined list: 7 total findings (3 C# + 4 Python)
-  Sorted by severity
-  Return final report
-
-OUTPUT:
-  [CRITICAL] SQLi in UserController.cs:42 (C#)
-  [HIGH] N+1 in OrderService.cs:78 (C#)
-  [HIGH] N+1 in PaymentService.cs:120 (C#)
-  [MEDIUM] Unused import in api.py:5 (Python)
-  [MEDIUM] Security pattern in utils.py:42 (Python)
-  [LOW] Line too long in config.py:156 (Python)
-  [LOW] Line too long in helpers.py:89 (Python)
-```
-
-### Integration Points
-
-**Inside `CodeReviewPipeline.cs` (after synthesis, before return):**
-
-```csharp
-// After C# synthesis completes...
-
-if (context.ChangedFiles.Any(f => f.Path.EndsWith(".py")))
-{
-    var pythonFiles = context.ChangedFiles
-        .Where(f => f.Path.EndsWith(".py"))
-        .Select(f => f.Path)
-        .ToList();
-    
-    var pythonFindings = await _pythonRuffClient.AnalyzeAsync(
-        context.RepositoryPath,
-        pythonFiles
-    );
-    
-    finalResult.Findings.AddRange(pythonFindings);
-}
-
-return new ReviewOutput(context, finalResult);
-```
-
-**No changes to:**
-- TriageAgent, SecurityAgent, PerformanceAgent, ModernizationAgent (untouched)
-- MCP tool signatures (still the same 4 tools)
-- Groq API integration (still only for C# analysis)
-- DI setup (minimal new registration)
-
-### Python/Ruff Service (Separate)
-
-**Location:** External process/service (can be Python, Node, Go, etc.)
-
-**API:**
-```http
-POST http://localhost:5000/analyze-python
-Content-Type: application/json
-
-Request:
-{
-  "repo_path": "/absolute/path/to/repo",
-  "python_files": ["src/api.py", "tests/test_api.py"]
-}
-
-Response:
-{
-  "findings": [
-    {
-      "file": "src/api.py",
-      "line": 42,
-      "severity": "HIGH",
-      "category": "security_pattern",
-      "message": "Potential SQL injection",
-      "rule_code": "S610"
-    }
-  ]
-}
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                     PYTHON/RUFF INTEGRATION ROADMAP                              │
+│                                                                                 │
+│  ═══════════════════════════════════════════════════════════════════════════   │
+│  CURRENT STATE (What Works Today)                                               │
+│  ═══════════════════════════════════════════════════════════════════════════   │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐    │
+│  │  FilterStage.cs — EXTENSION WHITELIST (Hardcoded)                       │    │
+│  │                                                                         │    │
+│  │  sourceExtensions = {                                                   │    │
+│  │      ".cs",     // ✅ C# source files                                   │    │
+│  │      ".csproj", // ✅ C# project files                                  │    │
+│  │      ".fsproj", // ✅ F# project files                                  │    │
+│  │      ".vbproj", // ✅ VB project files                                  │    │
+│  │      ".sln",    // ✅ Solution files                                    │    │
+│  │      ".fs",     // ✅ F# source files                                   │    │
+│  │      ".fsx",    // ✅ F# script files                                   │    │
+│  │      ".props",  // ✅ MSBuild props                                     │    │
+│  │      ".targets" // ✅ MSBuild targets                                   │    │
+│  │  }                                                                      │    │
+│  │                                                                         │    │
+│  │  ❌ ".py"  — NOT IN WHITELIST → Silently dropped                        │    │
+│  │  ❌ ".ts"  — NOT IN WHITELIST → Silently dropped                        │    │
+│  │  ❌ ".js"  — NOT IN WHITELIST → Silently dropped                        │    │
+│  │                                                                         │    │
+│  │  RESULT: Python files are IDENTIFIED but NEVER ANALYZED                 │    │
+│  └─────────────────────────────────────────────────────────────────────────┘    │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐    │
+│  │  CodeAnalysisTool.cs — ROSLYN ONLY (C# Analysis)                       │    │
+│  │                                                                         │    │
+│  │  Methods:                                                               │    │
+│  │  ├── GetDependencyGraphAsync()     → Microsoft.CodeAnalysis.CSharp      │    │
+│  │  ├── GetCyclomaticComplexityAsync() → Counts C# syntax kinds           │    │
+│  │  ├── FindCallersAsync()            → Uses Roslyn SemanticModel         │    │
+│  │  └── DetectCodeSmellsAsync()       → Checks C# declaration syntax     │    │
+│  │                                                                         │    │
+│  │  ❌ ALL METHODS → Throw or return empty for non-C# files                │    │
+│  └─────────────────────────────────────────────────────────────────────────┘    │
+│                                                                                 │
+│  ═══════════════════════════════════════════════════════════════════════════   │
+│  FUTURE STATE (What We're Building)                                             │
+│  ═══════════════════════════════════════════════════════════════════════════   │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐    │
+│  │                                                                         │    │
+│  │  ┌───────────────────────────────────────────────────────────────────┐  │    │
+│  │  │  STAGE 1: FILTER (Enhanced)                                       │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  sourceExtensions = {                                             │  │    │
+│  │  │      // Existing .NET extensions...                              │  │    │
+│  │  │      ".cs", ".csproj", ".fsproj", ".vbproj",                     │  │    │
+│  │  │      ".sln", ".fs", ".fsx", ".props", ".targets",                │  │    │
+│  │  │                                                                   │  │    │
+│  │  │      // 🆕 NEW: Python extensions                                │  │    │
+│  │  │      ".py",          // ✅ Python source files                    │  │    │
+│  │  │      ".pyi",         // ✅ Python type stubs                     │  │    │
+│  │  │      ".pyx",         // ✅ Cython files                           │  │    │
+│  │  │  }                                                                │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  File categorization logic:                                       │  │    │
+│  │  │  ┌─────────────────────────────────────────────────────────────┐  │  │    │
+│  │  │  │  foreach file in changedFiles:                              │  │  │    │
+│  │  │  │      if (file ends with .cs/.csproj/...):                   │  │  │    │
+│  │  │  │          csharpFiles.Add(file)                              │  │  │    │
+│  │  │  │      elif (file ends with .py/.pyi/.pyx):                   │  │  │    │
+│  │  │  │          pythonFiles.Add(file)                              │  │  │    │
+│  │  │  │      else:                                                  │  │  │    │
+│  │  │  │          skip (config, docs, etc.)                          │  │  │    │
+│  │  │  └─────────────────────────────────────────────────────────────┘  │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  OUTPUT: PipelineContext {                                        │  │    │
+│  │  │      CSharpFiles: [...],                                          │  │    │
+│  │  │      PythonFiles: [...],  // 🆕 NEW FIELD                        │  │    │
+│  │  │      ChangedFiles: [...]                                         │  │    │
+│  │  │  }                                                                │  │    │
+│  │  └───────────────────────────────────────────────────────────────────┘  │    │
+│  │                                    │                                    │    │
+│  │                                    ▼                                    │    │
+│  │  ┌───────────────────────────────────────────────────────────────────┐  │    │
+│  │  │  STAGE 2-4: C# PIPELINE (Unchanged)                              │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  Triage → Specialists → Synthesis                                 │  │    │
+│  │  │  (Only processes C# files)                                        │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  OUTPUT: C# Findings                                             │  │    │
+│  │  └───────────────────────────────────────────────────────────────────┘  │    │
+│  │                                    │                                    │    │
+│  │                                    ▼                                    │    │
+│  │  ┌───────────────────────────────────────────────────────────────────┐  │    │
+│  │  │  🆕 STAGE 5: PYTHON ANALYSIS (New)                                │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  ┌─────────────────────────────────────────────────────────────┐  │  │    │
+│  │  │  │  STEP 1: DETECT PYTHON FILES                                │  │  │    │
+│  │  │  │                                                             │  │  │    │
+│  │  │  │  Check: context.PythonFiles.Any()                           │  │  │    │
+│  │  │  │                                                             │  │  │    │
+│  │  │  │  IF NO .py files ──▶ Skip, return C# findings only         │  │  │    │
+│  │  │  │  IF .py files exist ──▶ Continue to Step 2                  │  │  │    │
+│  │  │  └─────────────────────────────────────────────────────────────┘  │  │    │
+│  │  │                                    │                              │  │    │
+│  │  │                                    ▼                              │  │    │
+│  │  │  ┌─────────────────────────────────────────────────────────────┐  │  │    │
+│  │  │  │  STEP 2: CALL PYTHON/RUFF SERVICE                          │  │  │    │
+│  │  │  │                                                             │  │  │    │
+│  │  │  │  ┌───────────────────────────────────────────────────────┐  │  │  │    │
+│  │  │  │  │  PythonRuffService (NEW CLASS)                        │  │  │  │    │
+│  │  │  │  │                                                       │  │  │  │    │
+│  │  │  │  │  Interface: IPythonRuffService                        │  │  │  │    │
+│  │  │  │  │  Method: AnalyzeAsync(repoPath, pythonFiles)         │  │  │  │    │
+│  │  │  │  │                                                       │  │  │  │    │
+│  │  │  │  │  Implementation Options:                              │  │  │  │    │
+│  │  │  │  │  ┌─────────────────────────────────────────────────┐ │  │  │  │    │
+│  │  │  │  │  │  Option A: HTTP Client                           │ │  │  │  │    │
+│  │  │  │  │  │  POST http://localhost:5000/analyze-python      │ │  │  │  │    │
+│  │  │  │  │  │  Body: { repo_path, python_files }              │ │  │  │  │    │
+│  │  │  │  │  │  Response: { findings: [...] }                  │ │  │  │  │    │
+│  │  │  │  │  └─────────────────────────────────────────────────┘ │  │  │  │    │
+│  │  │  │  │  ┌─────────────────────────────────────────────────┐ │  │  │  │    │
+│  │  │  │  │  │  Option B: Process Invocation                   │ │  │  │  │    │
+│  │  │  │  │  │  ruff check --output-format json [files]        │ │  │  │  │    │
+│  │  │  │  │  │  Parse stdout as JSON                           │ │  │  │  │    │
+│  │  │  │  │  └─────────────────────────────────────────────────┘ │  │  │  │    │
+│  │  │  │  │  ┌─────────────────────────────────────────────────┐ │  │  │  │    │
+│  │  │  │  │  │  Option C: Embedded Python (via Python.NET)     │ │  │  │  │    │
+│  │  │  │  │  │  Call ruff programmatically                     │ │  │  │  │    │
+│  │  │  │  │  │  No separate process needed                    │ │  │  │  │    │
+│  │  │  │  │  └─────────────────────────────────────────────────┘ │  │  │  │    │
+│  │  │  │  └───────────────────────────────────────────────────────┘  │  │  │    │
+│  │  │  └─────────────────────────────────────────────────────────────┘  │  │    │
+│  │  │                                    │                              │  │    │
+│  │  │                                    ▼                              │  │    │
+│  │  │  ┌─────────────────────────────────────────────────────────────┐  │  │    │
+│  │  │  │  STEP 3: CONVERT RUFF OUTPUT → FINDING OBJECTS             │  │  │    │
+│  │  │  │                                                             │  │  │    │
+│  │  │  │  Ruff JSON Output:                                          │  │  │    │
+│  │  │  │  {                                                          │  │  │    │
+│  │  │  │    "filename": "src/api.py",                                │  │  │    │
+│  │  │  │    "location": { "row": 42, "column": 0 },                 │  │  │    │
+│  │  │  │    "code": "S610",                                          │  │  │    │
+│  │  │  │    "message": "Potential SQL injection"                     │  │  │    │
+│  │  │  │  }                                                          │  │  │    │
+│  │  │  │                                                             │  │  │    │
+│  │  │  │  ──▶ Convert to:                                            │  │  │    │
+│  │  │  │                                                             │  │  │    │
+│  │  │  │  new Finding {                                              │  │  │    │
+│  │  │  │      File = "src/api.py",                                   │  │  │    │
+│  │  │  │      Line = 42,                                             │  │  │    │
+│  │  │  │      Severity = MapSeverity(ruffCode),  // S610 → HIGH     │  │  │    │
+│  │  │  │      Category = "Security",                                  │  │  │    │
+│  │  │  │      Message = "Potential SQL injection",                   │  │  │    │
+│  │  │  │      Agent = "Ruff",                                        │  │  │    │
+│  │  │  │      Confidence = 0.9f,                                     │  │  │    │
+│  │  │  │      RuleCode = "S610"                                      │  │  │    │
+│  │  │  │  }                                                          │  │  │    │
+│  │  │  │                                                             │  │  │    │
+│  │  │  │  Severity Mapping:                                          │  │  │    │
+│  │  │  │  ├── S (Security) ──▶ HIGH / CRITICAL                      │  │  │    │
+│  │  │  │  ├── E (Error)    ──▶ HIGH                                 │  │  │    │
+│  │  │  │  ├── W (Warning)  ──▶ MEDIUM                               │  │  │    │
+│  │  │  │  ├── F (Fatal)    ──▶ CRITICAL                             │  │  │    │
+│  │  │  │  └── C (Convention) ──▶ LOW                                │  │  │    │
+│  │  │  └─────────────────────────────────────────────────────────────┘  │  │    │
+│  │  │                                    │                              │  │    │
+│  │  │                                    ▼                              │  │    │
+│  │  │  ┌─────────────────────────────────────────────────────────────┐  │  │    │
+│  │  │  │  STEP 4: MERGE FINDINGS                                     │  │  │    │
+│  │  │  │                                                             │  │  │    │
+│  │  │  │  ┌───────────────────────────────────────────────────────┐  │  │  │    │
+│  │  │  │  │  C# Findings (from Agents)                            │  │  │  │    │
+│  │  │  │  │  • SQLi in UserController.cs:42 (CRITICAL)            │  │  │  │    │
+│  │  │  │  │  • N+1 in OrderService.cs:78 (HIGH)                   │  │  │  │    │
+│  │  │  │  └───────────────────────────────────────────────────────┘  │  │  │    │
+│  │  │  │                          +                                   │  │  │    │
+│  │  │  │  ┌───────────────────────────────────────────────────────┐  │  │  │    │
+│  │  │  │  │  Python Findings (from Ruff)                          │  │  │  │    │
+│  │  │  │  │  • SQL injection in api.py:42 (HIGH)                  │  │  │  │    │
+│  │  │  │  │  • Unused import in utils.py:5 (LOW)                  │  │  │  │    │
+│  │  │  │  └───────────────────────────────────────────────────────┘  │  │  │    │
+│  │  │  │                          =                                   │  │  │    │
+│  │  │  │  ┌───────────────────────────────────────────────────────┐  │  │  │    │
+│  │  │  │  │  Combined Findings (sorted by severity)               │  │  │  │    │
+│  │  │  │  │  1. [CRITICAL] SQLi in UserController.cs:42 (C#)     │  │  │  │    │
+│  │  │  │  │  2. [HIGH]     SQL injection in api.py:42 (Python)   │  │  │  │    │
+│  │  │  │  │  3. [HIGH]     N+1 in OrderService.cs:78 (C#)        │  │  │  │    │
+│  │  │  │  │  4. [LOW]      Unused import in utils.py:5 (Python)  │  │  │  │    │
+│  │  │  │  └───────────────────────────────────────────────────────┘  │  │  │    │
+│  │  │  └─────────────────────────────────────────────────────────────┘  │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  OUTPUT: ReviewOutput { Context, AgentResult (all findings) }    │  │    │
+│  │  └───────────────────────────────────────────────────────────────────┘  │    │
+│  │                                                                         │    │
+│  └─────────────────────────────────────────────────────────────────────────┘    │
+│                                                                                 │
+│  ═══════════════════════════════════════════════════════════════════════════   │
+│  INTEGRATION点 (Where Code Changes Happen)                                      │
+│  ═══════════════════════════════════════════════════════════════════════════   │
+│                                                                                 │
+│  Files to modify:                                                               │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐    │
+│  │  1. FilterStage.cs                                                      │    │
+│  │     └── Add ".py", ".pyi", ".pyx" to sourceExtensions                 │    │
+│  │     └── Categorize files into CSharpFiles + PythonFiles                │    │
+│  │                                                                         │    │
+│  │  2. PipelineContext (Core/Models)                                       │    │
+│  │     └── Add PythonFiles property                                        │    │
+│  │                                                                         │    │
+│  │  3. CodeReviewPipeline.cs                                               │    │
+│  │     └── After Stage 4 synthesis, add Python analysis step              │    │
+│  │     └── Call IPythonRuffService if PythonFiles.Any()                   │    │
+│  │                                                                         │    │
+│  │  4. NEW: IPythonRuffService (Core/Interfaces)                          │    │
+│  │     └── AnalyzeAsync(repoPath, pythonFiles) → List<Finding>            │    │
+│  │                                                                         │    │
+│  │  5. NEW: PythonRuffService (Orchestration)                             │    │
+│  │     └── HTTP client to Python/Ruff service                             │    │
+│  │     └── OR process invocation for ruff CLI                             │    │
+│  │                                                                         │    │
+│  │  6. ServiceCollectionExtensions.cs                                      │    │
+│  │     └── Register IPythonRuffService in DI                              │    │
+│  │                                                                         │    │
+│  │  7. appsettings.json / .env                                             │    │
+│  │     └── PYTHON_RUFF_SERVICE_URL (for HTTP option)                      │    │
+│  │     └── RUFF_EXECUTABLE_PATH (for process option)                      │    │
+│  │                                                                         │    │
+│  │  Files NOT modified:                                                    │    │
+│  │  ├── TriageAgent.cs       (unchanged — routes to same C# agents)      │    │
+│  │  ├── SecurityAgent.cs     (unchanged — C# analysis only)              │    │
+│  │  ├── PerformanceAgent.cs  (unchanged — C# analysis only)              │    │
+│  │  ├── ModernizationAgent.cs (unchanged — C# analysis only)             │    │
+│  │  ├── AgentFactory.cs      (unchanged — no new agent roles)            │    │
+│  │  └── CodeReviewMcpTools.cs (unchanged — same 4 MCP tools)            │    │
+│  └─────────────────────────────────────────────────────────────────────────┘    │
+│                                                                                 │
+│  ═══════════════════════════════════════════════════════════════════════════   │
+│  PYTHON/RUFF SERVICE ARCHITECTURE (Separate Process)                            │
+│  ═══════════════════════════════════════════════════════════════════════════   │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐    │
+│  │                                                                         │    │
+│  │  ┌───────────────────────────────────────────────────────────────────┐  │    │
+│  │  │                    OPTION A: HTTP SERVICE                         │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  ┌─────────────────┐         ┌─────────────────────────────────┐ │  │    │
+│  │  │  │  C# MCP Server  │  HTTP   │  Python Flask/FastAPI Service   │ │  │    │
+│  │  │  │  (Port: stdio)  │◄───────▶│  (Port: 5000)                  │ │  │    │
+│  │  │  └─────────────────┘         └─────────────────────────────────┘ │  │    │
+│  │  │                                   │                               │  │    │
+│  │  │                                   ▼                               │  │    │
+│  │  │                          ┌────────────────────┐                  │  │    │
+│  │  │                          │  ruff check        │                  │  │    │
+│  │  │                          │  --output-format   │                  │  │    │
+│  │  │                          │  json              │                  │  │    │
+│  │  │                          └────────────────────┘                  │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  Pros: Independent scaling, language agnostic, easy upgrades     │  │    │
+│  │  │  Cons: Extra process to manage, network overhead                │  │    │
+│  │  └───────────────────────────────────────────────────────────────────┘  │    │
+│  │                                                                         │    │
+│  │  ┌───────────────────────────────────────────────────────────────────┐  │    │
+│  │  │                    OPTION B: PROCESS INVOCATION                   │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  ┌─────────────────┐    Process.Start    ┌────────────────────┐ │  │    │
+│  │  │  │  C# MCP Server  │────────────────────▶│  ruff CLI          │ │  │    │
+│  │  │  │  (Port: stdio)  │◀────────────────────│  (executable)      │ │  │    │
+│  │  │  └─────────────────┘    stdout (JSON)    └────────────────────┘ │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  Pros: Simple, no extra service, direct control                 │  │    │
+│  │  │  Cons: Requires ruff installed, process per call overhead       │  │    │
+│  │  └───────────────────────────────────────────────────────────────────┘  │    │
+│  │                                                                         │    │
+│  │  ┌───────────────────────────────────────────────────────────────────┐  │    │
+│  │  │                    OPTION C: EMBEDDED (Python.NET)                │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  ┌─────────────────────────────────────────────────────────────┐ │  │    │
+│  │  │  │  C# MCP Server (Single Process)                            │ │  │    │
+│  │  │  │  ├── CodeReviewPipeline                                     │ │  │    │
+│  │  │  │  ├── All C# Agents                                         │ │  │    │
+│  │  │  │  ├── Python.NET runtime                                     │ │  │    │
+│  │  │  │  │   └── import ruff                                       │ │  │    │
+│  │  │  │  │   └── ruff.check(files)                                 │ │  │    │
+│  │  │  │  └── Finding conversion                                     │ │  │    │
+│  │  │  └─────────────────────────────────────────────────────────────┘ │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  Pros: Single process, lowest latency, simplest deployment      │  │    │
+│  │  │  Cons: Requires Python runtime on C# machines, NuGet dependency│  │    │
+│  │  └───────────────────────────────────────────────────────────────────┘  │    │
+│  │                                                                         │    │
+│  └─────────────────────────────────────────────────────────────────────────┘    │
+│                                                                                 │
+│  ═══════════════════════════════════════════════════════════════════════════   │
+│  EXAMPLE: MIXED REPOSITORY PROCESSING                                           │
+│  ═══════════════════════════════════════════════════════════════════════════   │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐    │
+│  │                                                                         │    │
+│  │  INPUT: Mixed Repository                                                │    │
+│  │  ├── src/Controllers/UserController.cs    (C#)                         │    │
+│  │  ├── src/Services/OrderService.cs         (C#)                         │    │
+│  │  ├── src/Models/User.cs                   (C#)                         │    │
+│  │  ├── tests/test_user.py                   (Python)                     │    │
+│  │  ├── scripts/migrate_data.py              (Python)                     │    │
+│  │  ├── config/settings.json                 (skip)                       │    │
+│  │  └── README.md                            (skip)                       │    │
+│  │                                                                         │    │
+│  │  ─────────────────────────────────────────────────────────────────     │    │
+│  │                                                                         │    │
+│  │  STAGE 1: FILTER                                                       │    │
+│  │  ├── C# files identified: 3 (.cs files)                                │    │
+│  │  ├── Python files identified: 2 (.py files)                           │    │
+│  │  ├── Roslyn graph built for C# only                                    │    │
+│  │  └── Dependency analysis: UserController → OrderService                │    │
+│  │                                                                         │    │
+│  │  ─────────────────────────────────────────────────────────────────     │    │
+│  │                                                                         │    │
+│  │  STAGE 2: TRIAGE (8B LLM)                                              │    │
+│  │  ├── Input: 3 C# files with diff content                              │    │
+│  │  ├── Decision: "Security + Performance issues detected"                │    │
+│  │  └── Route to: SecurityAgent, PerformanceAgent                         │    │
+│  │                                                                         │    │
+│  │  ─────────────────────────────────────────────────────────────────     │    │
+│  │                                                                         │    │
+│  │  STAGE 3: SPECIALISTS (70B LLM × 2 parallel)                           │    │
+│  │  ├── SecurityAgent:                                                    │    │
+│  │  │   └── Found: SQL injection in UserController.cs:42                  │    │
+│  │  └── PerformanceAgent:                                                 │    │
+│  │      └── Found: N+1 query in OrderService.cs:78                        │    │
+│  │                                                                         │    │
+│  │  ─────────────────────────────────────────────────────────────────     │    │
+│  │                                                                         │    │
+│  │  STAGE 4: SYNTHESIS (C# Dedup)                                         │    │
+│  │  ├── 2 C# findings                                                     │    │
+│  │  ├── No cross-agent agreement (different files)                       │    │
+│  │  └── Sorted: [HIGH] SQLi, [HIGH] N+1                                   │    │
+│  │                                                                         │    │
+│  │  ─────────────────────────────────────────────────────────────────     │    │
+│  │                                                                         │    │
+│  │  🆕 STAGE 5: PYTHON ANALYSIS                                           │    │
+│  │  ├── Detected: 2 Python files in ChangedFiles                          │    │
+│  │  ├── Call: PythonRuffService.AnalyzeAsync(repoPath, pyFiles)          │    │
+│  │  ├── Ruff output:                                                      │    │
+│  │  │   ├── test_user.py:15 — unused import (C0411) → LOW                │    │
+│  │  │   └── migrate_data.py:42 — SQL string concat (S610) → HIGH         │    │
+│  │  └── Convert to Finding objects                                        │    │
+│  │                                                                         │    │
+│  │  ─────────────────────────────────────────────────────────────────     │    │
+│  │                                                                         │    │
+│  │  MERGE & OUTPUT                                                        │    │
+│  │  ├── Combined: 4 findings (2 C# + 2 Python)                           │    │
+│  │  ├── Sorted by severity:                                               │    │
+│  │  │   1. [HIGH] SQL injection in UserController.cs:42 (C#)             │    │
+│  │  │   2. [HIGH] SQL string concat in migrate_data.py:42 (Python)       │    │
+│  │  │   3. [HIGH] N+1 query in OrderService.cs:78 (C#)                   │    │
+│  │  │   4. [LOW]  Unused import in test_user.py:15 (Python)             │    │
+│  │  └── Total review time: ~10-15 seconds                                 │    │
+│  │                                                                         │    │
+│  └─────────────────────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## The 4 MCP Tools
-
-These are the tools available through the MCP server:
-
-### 1. `review_repo` — Full Code Review
+## The 4 MCP Tools — Tool Interaction Mind Map
 
 ```
-Input:  repo_path (string)
-        commit_hash (string)
-        base_commit (string, optional)
-
-Output: Markdown report with all findings sorted by severity
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                     MCP SERVER (stdio transport)                                │
+│                                                                                 │
+│  CodeReviewMcpTools.cs — [McpServerToolType]                                    │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐    │
+│  │  DEPENDENCY INJECTION:                                                  │    │
+│  │  • CodeReviewPipeline  (constructor-injected)                           │    │
+│  │  • AgentFactory        (constructor-injected)                           │    │
+│  │                                                                         │    │
+│  │  CACHING LAYERS:                                                        │    │
+│  │  ┌─────────────────────────────────────────────────────────────────┐   │    │
+│  │  │  Layer 1: _pipelineCache     (static Dictionary)               │   │    │
+│  │  │  Key: repo_path → ReviewOutput (full context + findings)       │   │    │
+│  │  │  Scope: Process lifetime, shared across all tool calls          │   │    │
+│  │  ├─────────────────────────────────────────────────────────────────┤   │    │
+│  │  │  Layer 2: _reportCache       (static Dictionary)               │   │    │
+│  │  │  Key: repo_path → string (formatted markdown report)           │   │    │
+│  │  │  Scope: Process lifetime, shared across all tool calls          │   │    │
+│  │  ├─────────────────────────────────────────────────────────────────┤   │    │
+│  │  │  Layer 3: .codereview/last_report.md  (file on disk)           │   │    │
+│  │  │  Key: repo_path → file path                                    │   │    │
+│  │  │  Scope: Persists across MCP server restarts                     │   │    │
+│  │  └─────────────────────────────────────────────────────────────────┘   │    │
+│  └─────────────────────────────────────────────────────────────────────────┘    │
+│                                                                                 │
+│  ═══════════════════════════════════════════════════════════════════════════   │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐    │
+│  │  TOOL 1: review_repo          ⏱️ 8-14s    💰 ~$0.0007 per call         │    │
+│  │                                                                         │    │
+│  │  User says: "Review this commit", "Check this PR", "Audit changes"     │    │
+│  │                                                                         │    │
+│  │  ┌──────────────┐    ┌──────────────────┐    ┌──────────────────┐     │    │
+│  │  │  INPUT:       │    │  ALWAYS RUNS     │    │  OUTPUT:          │     │    │
+│  │  │  repo_path    │───▶│  RunReviewAsync() │───▶│  Markdown report  │     │    │
+│  │  │  commit_hash  │    │  (no cache check) │    │  (sorted by       │     │    │
+│  │  │  base_commit? │    │                   │    │   severity)       │     │    │
+│  │  └──────────────┘    └──────────────────┘    └──────────────────┘     │    │
+│  │                                    │                                    │    │
+│  │                                    ▼                                    │    │
+│  │                          ┌──────────────────┐                          │    │
+│  │                          │  CACHES RESULT:   │                          │    │
+│  │                          │  _pipelineCache   │                          │    │
+│  │                          │  _reportCache     │                          │    │
+│  │                          │  .codereview/     │                          │    │
+│  │                          │  last_report.md   │                          │    │
+│  │                          └──────────────────┘                          │    │
+│  └─────────────────────────────────────────────────────────────────────────┘    │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐    │
+│  │  TOOL 2: ask_codebase         ⏱️ 3-4s     💰 ~$0.0001 per call         │    │
+│  │                                                                         │    │
+│  │  User says: "Where is auth handled?", "What calls IUserRepository?"   │    │
+│  │                                                                         │    │
+│  │  ┌──────────────┐    ┌──────────────────┐    ┌──────────────────┐     │    │
+│  │  │  INPUT:       │    │  CACHE CHECK:    │    │  IF CACHED:       │     │    │
+│  │  │  repo_path    │───▶│  _pipelineCache  │───▶│  Use existing     │     │    │
+│  │  │  question     │    │  [repo_path]?    │    │  ReviewOutput     │     │    │
+│  │  └──────────────┘    └──────────────────┘    └──────────────────┘     │    │
+│  │                                    │                                    │    │
+│  │                          ┌─────────┴─────────┐                        │    │
+│  │                          │                   │                        │    │
+│  │                     IF CACHED             IF NOT CACHED               │    │
+│  │                          │                   │                        │    │
+│  │                          ▼                   ▼                        │    │
+│  │                 ┌────────────────┐  ┌────────────────────┐            │    │
+│  │                 │  Create        │  │  RunReviewAsync()  │            │    │
+│  │                 │  OnboardingAgent│ │  (full pipeline)   │            │    │
+│  │                 │  via Factory   │  │  Then cache result │            │    │
+│  │                 └────────┬───────┘  └────────┬───────────┘            │    │
+│  │                          │                   │                        │    │
+│  │                          └─────────┬─────────┘                        │    │
+│  │                                    │                                    │    │
+│  │                                    ▼                                    │    │
+│  │                          ┌──────────────────┐                          │    │
+│  │                          │  AnswerAsync()    │                          │    │
+│  │                          │  (LLM-powered    │                          │    │
+│  │                          │   Q&A grounded   │                          │    │
+│  │                          │   in codebase)   │                          │    │
+│  │                          └──────────────────┘                          │    │
+│  │                                    │                                    │    │
+│  │                                    ▼                                    │    │
+│  │                          ┌──────────────────┐                          │    │
+│  │                          │  OUTPUT:          │                          │    │
+│  │                          │  Natural language │                          │    │
+│  │                          │  answer string    │                          │    │
+│  │                          └──────────────────┘                          │    │
+│  └─────────────────────────────────────────────────────────────────────────┘    │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐    │
+│  │  TOOL 3: get_last_report     ⏱️ <1ms     💰 FREE                        │    │
+│  │                                                                         │    │
+│  │  User says: "Show me the previous review", "What was last report?"    │    │
+│  │                                                                         │    │
+│  │  ┌──────────────┐    ┌──────────────────┐    ┌──────────────────┐     │    │
+│  │  │  INPUT:       │    │  CHECK LAYERS:    │    │  OUTPUT:          │     │    │
+│  │  │  repo_path    │───▶│  1. _reportCache  │───▶│  Cached markdown  │     │    │
+│  │  └──────────────┘    │  2. Disk file     │    │  OR "No report    │     │    │
+│  │                      │  3. Populate cache │    │   found" message  │     │    │
+│  │                      └──────────────────┘    └──────────────────┘     │    │
+│  │                                                                         │    │
+│  │  ⚡ NO LLM calls, NO pipeline execution, NO git commands               │    │
+│  └─────────────────────────────────────────────────────────────────────────┘    │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐    │
+│  │  TOOL 4: generate_docs       ⏱️ 10-15s   💰 ~$0.0001 per call         │    │
+│  │                                                                         │    │
+│  │  User says: "Generate documentation", "Create README", "Write docs"   │    │
+│  │                                                                         │    │
+│  │  ┌──────────────┐    ┌──────────────────┐    ┌──────────────────┐     │    │
+│  │  │  INPUT:       │    │  CACHE CHECK:    │    │  IF CACHED:       │     │    │
+│  │  │  repo_path    │───▶│  _pipelineCache  │───▶│  Use existing     │     │    │
+│  │  │  commit_hash  │    │  [repo_path]     │    │  ReviewOutput     │     │    │
+│  │  │  base_commit? │    │  AND             │    │  (if commit       │     │    │
+│  │  └──────────────┘    │  commit match?   │    │   matches)        │     │    │
+│  │                      └──────────────────┘    └──────────────────┘     │    │
+│  │                                    │                                    │    │
+│  │                          ┌─────────┴─────────┐                        │    │
+│  │                          │                   │                        │    │
+│  │                     IF CACHED             IF NOT CACHED               │    │
+│  │                     (match)               (or mismatch)               │    │
+│  │                          │                   │                        │    │
+│  │                          ▼                   ▼                        │    │
+│  │                 ┌────────────────┐  ┌────────────────────┐            │    │
+│  │                 │  Use cached    │  │  RunReviewAsync()  │            │    │
+│  │                 │  ReviewOutput  │  │  (full pipeline)   │            │    │
+│  │                 └────────┬───────┘  └────────┬───────────┘            │    │
+│  │                          │                   │                        │    │
+│  │                          └─────────┬─────────┘                        │    │
+│  │                                    │                                    │    │
+│  │                                    ▼                                    │    │
+│  │                          ┌──────────────────┐                          │    │
+│  │                          │  Create           │                          │    │
+│  │                          │  DocumentationAgent│                         │    │
+│  │                          │  via Factory      │                          │    │
+│  │                          └────────┬─────────┘                          │    │
+│  │                                   │                                     │    │
+│  │                                   ▼                                     │    │
+│  │                          ┌──────────────────┐                          │    │
+│  │                          │  GenerateDocAsync │                          │    │
+│  │                          │  (LLM-powered    │                          │    │
+│  │                          │   doc generation)│                          │    │
+│  │                          └────────┬─────────┘                          │    │
+│  │                                   │                                     │    │
+│  │                                   ▼                                     │    │
+│  │                          ┌──────────────────┐                          │    │
+│  │                          │  OUTPUT:          │                          │    │
+│  │                          │  Documentation   │                          │    │
+│  │                          │  markdown string │                          │    │
+│  │                          └──────────────────┘                          │    │
+│  └─────────────────────────────────────────────────────────────────────────┘    │
+│                                                                                 │
+│  ═══════════════════════════════════════════════════════════════════════════   │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐    │
+│  │  TOOL COMPARISON MATRIX                                                 │    │
+│  │                                                                         │    │
+│  │  ┌─────────────────┬──────────┬──────────┬──────────┬──────────────┐  │    │
+│  │  │ Tool            │ Pipeline │ LLM Call │ Cache    │ Disk I/O     │  │    │
+│  │  ├─────────────────┼──────────┼──────────┼──────────┼──────────────┤  │    │
+│  │  │ review_repo     │ ✅ Always│ ✅ 4 calls│ ✅ Write │ ✅ Write .md │  │    │
+│  │  │ ask_codebase    │ ⚡ If miss│ ✅ 1 call │ ✅ Read  │ ❌ None      │  │    │
+│  │  │ get_last_report │ ❌ Never │ ❌ None   │ ✅ Read  │ ⚡ Read .md  │  │    │
+│  │  │ generate_docs   │ ⚡ If miss│ ✅ 1 call │ ✅ Read  │ ❌ None      │  │    │
+│  │  └─────────────────┴──────────┴──────────┴──────────┴──────────────┘  │    │
+│  │                                                                         │    │
+│  │  ✅ = Always used   ⚡ = Conditionally used   ❌ = Never used           │    │
+│  └─────────────────────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────────────────────┘
 ```
-
-**What it does:**
-- Runs all pipeline stages
-- Auto-detects project type (C#, Python, mixed)
-- Calls appropriate agents
-- Merges findings
-- Returns prioritized report
-
-**Use when:** "Review this commit", "Check this PR"
-
-### 2. `ask_codebase` — Natural Language Q&A
-
-```
-Input:  repo_path (string)
-        question (string)
-
-Output: AI-powered answer grounded in code analysis
-```
-
-**Use when:** "Where is authentication handled?", "What calls IUserRepository?"
-
-### 3. `get_last_report` — Cached Results
-
-```
-Input:  repo_path (string)
-
-Output: Last report for this repo (instant, no re-run)
-```
-
-**Use when:** "Show me the previous review"
-
-### 4. `generate_docs` — Auto Documentation
-
-```
-Input:  repo_path (string)
-        commit_hash (string)
-        base_commit (string, optional)
-
-Output: Comprehensive README, API docs, architecture guide
-```
-
-**Use when:** "Generate documentation"
 
 ---
 
-## Pipeline Stages
+## Pipeline Stages — Detailed Breakdown
 
-### Stage 1: Filter
-
-- Runs `git diff`
-- Filters by source file extensions (.cs, .py, .csproj, etc.)
-- Builds Roslyn dependency graph
-- Selects top 30 most relevant files
-
-### Stage 2: Triage (8B LLM)
-
-- Sees: Changed files with line counts
-- Decides: Which agents should review? (Security, Performance, Modernization)
-- Returns: `["SECURITY", "PERFORMANCE"]` (example)
-- Speed: 2-3 seconds
-
-### Stage 3: Specialist Agents (70B LLM)
-
-**All 3 run in parallel via `Task.WhenAll`:**
-
-- **SecurityAgent:** SQLi, XSS, hardcoded secrets, weak crypto, auth bypass
-- **PerformanceAgent:** N+1 queries, blocking async calls, memory leaks, O(n²)
-- **ModernizationAgent:** SOLID violations, legacy patterns, complexity, tech debt
-
-**Speed:** 5-8 seconds total (faster than sequential)
-
-### Stage 4: Synthesis (C# Dedup)
-
-- Groups findings by file + line
-- If 2+ agents flag same line → boost to CRITICAL
-- Sorts by severity
-- No LLM calls (pure C# logic)
-
-### Stage 5: Python/Ruff (If .py Files Exist)
-
-- Auto-detects .py files
-- Calls Ruff service
-- Merges Python findings into final list
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                        THE 4+1 STAGE PIPELINE                                    │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐    │
+│  │                                                                         │    │
+│  │  ┌───────────────────────────────────────────────────────────────────┐  │    │
+│  │  │  STAGE 1: FILTER                              ⏱️ 1-2s  |  🔧 C#  │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  What it does:                                                    │  │    │
+│  │  │  ├── Runs `git diff --name-only {fromRef} {commitHash}`          │  │    │
+│  │  │  ├── Filters by extension whitelist (.cs, .csproj, .fsproj, etc) │  │    │
+│  │  │  ├── Builds Roslyn dependency graph via CodeAnalysisTool         │  │    │
+│  │  │  └── BFS through reverse deps to find top 30 relevant files     │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  Key implementation:                                              │  │    │
+│  │  │  • FilterStage.cs handles all filtering logic                    │  │    │
+│  │  │  • GitOperationsTool creates `new` (NOT from DI)                 │  │    │
+│  │  │  • Roslyn errors are swallowed per-file (empty catch)            │  │    │
+│  │  │  • Extension whitelist is HARDCODED (no .py yet)                 │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  Output: PipelineContext                                          │  │    │
+│  │  └───────────────────────────────────────────────────────────────────┘  │    │
+│  │                                    │                                    │    │
+│  │                                    ▼                                    │    │
+│  │  ┌───────────────────────────────────────────────────────────────────┐  │    │
+│  │  │  STAGE 2: TRIAGE                             ⏱️ 2-3s  |  🧠 8B   │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  What it does:                                                    │  │    │
+│  │  │  ├── Builds prompt with file list + diff summary                 │  │    │
+│  │  │  ├── Sends to llama-3.1-8b-instant via Groq API                 │  │    │
+│  │  │  ├── Parses JSON response with 3-tier fallback:                  │  │    │
+│  │  │  │   1. Try "selected_agents" format first                       │  │    │
+│  │  │  │   2. Fall back to full JSON parse                             │  │    │
+│  │  │  │   3. Fall back to DEFAULT: all 3 agents                       │  │    │
+│  │  │  └── Returns TriageResult with Classifications, RouteTo[]        │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  Key implementation:                                              │  │    │
+│  │  │  • TriageAgent.cs handles classification                         │  │    │
+│  │  │  • Only routes to: Security, Performance, Modernization           │  │    │
+│  │  │  • LogicAgent is NEVER in RouteTo (orphaned in codebase)         │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  Output: TriageResult { Classifications, RouteTo[], Priority }   │  │    │
+│  │  └───────────────────────────────────────────────────────────────────┘  │    │
+│  │                                    │                                    │    │
+│  │                                    ▼                                    │    │
+│  │  ┌───────────────────────────────────────────────────────────────────┐  │    │
+│  │  │  STAGE 3: SPECIALISTS                       ⏱️ 5-8s  |  🧠 70B ×3│  │    │
+│  │  │                                                                   │  │    │
+│  │  │  What it does:                                                    │  │    │
+│  │  │  ├── Checks RouteTo list from triage                             │  │    │
+│  │  │  ├── Creates agent instances via AgentFactory                    │  │    │
+│  │  │  ├── Runs ALL agents in PARALLEL via Task.WhenAll                │  │    │
+│  │  │  ├── Each agent has 3 retry attempts (only on HTTP 429)          │  │    │
+│  │  │  ├── Backoff: 15s → 30s between retries                         │  │    │
+│  │  │  └── Returns List<(agentName, AgentResult)>                      │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  Key implementation:                                              │  │    │
+│  │  │  • BaseSpecialistAgent (abstract) provides shared logic          │  │    │
+│  │  │  • BuildPrompt: injects line numbers into diff content           │  │    │
+│  │  │  • ParseResponse: 3-tier JSON parsing (direct → regex → text)   │  │    │
+│  │  │  • No 2s delay between agents (unlike previous implementation)  │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  Agent specialties:                                               │  │    │
+│  │  │  ├── SecurityAgent: SQLi, XSS, secrets, crypto, auth            │  │    │
+│  │  │  ├── PerformanceAgent: N+1, blocking, memory, O(n²)             │  │    │
+│  │  │  └── ModernizationAgent: SOLID, legacy, complexity, debt         │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  Output: List<(agentName, AgentResult)>                          │  │    │
+│  │  └───────────────────────────────────────────────────────────────────┘  │    │
+│  │                                    │                                    │    │
+│  │                                    ▼                                    │    │
+│  │  ┌───────────────────────────────────────────────────────────────────┐  │    │
+│  │  │  STAGE 4: SYNTHESIS (C# DEDUP)              ⏱️ <1ms  |  🔧 C#    │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  What it does:                                                    │  │    │
+│  │  │  ├── Tags each finding with agent name                           │  │    │
+│  │  │  ├── Groups findings by (File, Line)                             │  │    │
+│  │  │  ├── Per group:                                                   │  │    │
+│  │  │  │   ├── Single finding → pass through                           │  │    │
+│  │  │  │   ├── Same agent, multiple → keep HIGHEST severity            │  │    │
+│  │  │  │   └── Different agents agree → 🚀 BOOST TO CRITICAL          │  │    │
+│  │  │  ├── Sorts by: Severity ↓ → File → Line                         │  │    │
+│  │  │  └── Builds summary with counts per severity + boost count       │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  Key implementation:                                              │  │    │
+│  │  │  • SynthesizeFindings() in CodeReviewPipeline.cs                 │  │    │
+│  │  │  • PURE C# LOGIC — NO LLM CALL                                  │  │    │
+│  │  │  • SynthesisAgent class EXISTS but is ORPHANED (never called)    │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  Output: AgentResult(sorted findings, summary)                   │  │    │
+│  │  └───────────────────────────────────────────────────────────────────┘  │    │
+│  │                                    │                                    │    │
+│  │                                    ▼                                    │    │
+│  │  ┌───────────────────────────────────────────────────────────────────┐  │    │
+│  │  │  STAGE 5: PYTHON/RUFF (FUTURE)                ⏱️ 1-3s  |  🔧 C#  │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  What it will do:                                                 │  │    │
+│  │  │  ├── Check: context.PythonFiles.Any()                            │  │    │
+│  │  │  ├── IF NO .py files → Skip, return C# findings only            │  │    │
+│  │  │  ├── IF .py files exist → Call PythonRuffService                 │  │    │
+│  │  │  ├── Service runs: ruff check --output-format json              │  │    │
+│  │  │  ├── Convert Ruff JSON → Finding objects                         │  │    │
+│  │  │  └── Merge Python findings with C# findings                      │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  Status: NOT YET IMPLEMENTED                                     │  │    │
+│  │  │  See Python/Ruff Integration section above for details           │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  Output: ReviewOutput { Context, AgentResult (all findings) }    │  │    │
+│  │  └───────────────────────────────────────────────────────────────────┘  │    │
+│  │                                                                         │    │
+│  └─────────────────────────────────────────────────────────────────────────┘    │
+│                                                                                 │
+│  ═══════════════════════════════════════════════════════════════════════════   │
+│  TIMING SUMMARY                                                                │
+│  ═══════════════════════════════════════════════════════════════════════════   │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐    │
+│  │                                                                         │    │
+│  │  C# Only Projects:                                                      │    │
+│  │  ┌─────────────────────────────────────────────────────────────────┐   │    │
+│  │  │  Filter    │████░░░░░░░░░░░░░░░░░░│  1-2s                       │   │    │
+│  │  │  Triage    │██████░░░░░░░░░░░░░░░░│  2-3s                       │   │    │
+│  │  │  Specialists│██████████████░░░░░░░░│  5-8s (parallel)            │   │    │
+│  │  │  Synthesis │░░░░░░░░░░░░░░░░░░░░░░│  <1ms                       │   │    │
+│  │  │            └──────────────────────┘                               │   │    │
+│  │  │  TOTAL:     8-14 seconds                                          │   │    │
+│  │  └─────────────────────────────────────────────────────────────────┘   │    │
+│  │                                                                         │    │
+│  │  Mixed Projects (C# + Python):                                         │    │
+│  │  ┌─────────────────────────────────────────────────────────────────┐   │    │
+│  │  │  C# Pipeline │████████████████████│  8-14s                      │   │    │
+│  │  │  Python Det  │░░░░░░░░░░░░░░░░░░░░│  <0.5s                      │   │    │
+│  │  │  Ruff        │████░░░░░░░░░░░░░░░░│  1-3s                       │   │    │
+│  │  │  Merge       │░░░░░░░░░░░░░░░░░░░░│  <1ms                       │   │    │
+│  │  │              └────────────────────┘                               │   │    │
+│  │  │  TOTAL:       9-18 seconds                                        │   │    │
+│  │  └─────────────────────────────────────────────────────────────────┘   │    │
+│  │                                                                         │    │
+│  │  API Cost per Review: ~$0.0007                                          │    │
+│  │  • 1× triage call (8B, ~$0.00005)                                     │    │
+│  │  • 3× specialist calls (70B, ~$0.0002 each)                           │    │
+│  │  • 1× onboarding/docs call (8B, ~$0.00005)                            │    │
+│  │  • Ruff analysis: FREE (local execution)                               │    │
+│  └─────────────────────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
@@ -442,86 +1238,471 @@ dotnet build MultiAgentCodeReview.McpServer
 
 ---
 
-## Performance Metrics
+## Performance Metrics — Cost & Timing Mind Map
 
-### Timing (C# Projects)
-
-| Stage | Time |
-|-------|------|
-| Filter | 1-2s |
-| Triage (8B) | 2-3s |
-| Specialists (parallel) | 5-8s |
-| Synthesis | <1ms |
-| **Total** | **8-14 seconds** |
-
-### With Python/Ruff (Mixed Projects)
-
-| Stage | Time |
-|-------|------|
-| C# Pipeline | 8-14s |
-| Python Detection | <0.5s |
-| Ruff Analysis | 1-3s |
-| Merge | <1ms |
-| **Total** | **9-18 seconds** |
-
-### API Costs
-
-- **Per review:** ~$0.0007 (4 Groq API calls)
-- **1000 reviews:** ~$0.70
-- **Note:** Ruff is local, no API costs
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                        PERFORMANCE ANALYSIS                                      │
+│                                                                                 │
+│  ═══════════════════════════════════════════════════════════════════════════   │
+│  TIMING BREAKDOWN                                                               │
+│  ═══════════════════════════════════════════════════════════════════════════   │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐    │
+│  │                                                                         │    │
+│  │  C# ONLY PROJECTS                                                       │    │
+│  │  ┌─────────────────────────────────────────────────────────────────┐   │    │
+│  │  │                                                                 │   │    │
+│  │  │  STAGE         TIME        COST       BOTTLENECK              │   │    │
+│  │  │  ─────────────────────────────────────────────────────────     │   │    │
+│  │  │  Filter        1-2s        $0          Git + Roslyn            │   │    │
+│  │  │  Triage        2-3s        $0.00005    8B LLM inference       │   │    │
+│  │  │  Specialists   5-8s        $0.0006     70B LLM ×3 parallel   │   │    │
+│  │  │  Synthesis     <1ms        $0          C# dedup               │   │    │
+│  │  │  ─────────────────────────────────────────────────────────     │   │    │
+│  │  │  TOTAL         8-14s       $0.0007     LLM inference          │   │    │
+│  │  │                                                                 │   │    │
+│  │  └─────────────────────────────────────────────────────────────────┘   │    │
+│  │                                                                         │    │
+│  │  MIXED PROJECTS (C# + Python)                                          │    │
+│  │  ┌─────────────────────────────────────────────────────────────────┐   │    │
+│  │  │                                                                 │   │    │
+│  │  │  STAGE         TIME        COST       BOTTLENECK              │   │    │
+│  │  │  ─────────────────────────────────────────────────────────     │   │    │
+│  │  │  C# Pipeline   8-14s       $0.0007     LLM inference          │   │    │
+│  │  │  Python Det    <0.5s       $0          Extension check        │   │    │
+│  │  │  Ruff          1-3s        $0          Local execution        │   │    │
+│  │  │  Merge         <1ms        $0          C# logic               │   │    │
+│  │  │  ─────────────────────────────────────────────────────────     │   │    │
+│  │  │  TOTAL         9-18s       $0.0007     LLM inference          │   │    │
+│  │  │                                                                 │   │    │
+│  │  └─────────────────────────────────────────────────────────────────┘   │    │
+│  │                                                                         │    │
+│  └─────────────────────────────────────────────────────────────────────────┘    │
+│                                                                                 │
+│  ═══════════════════════════════════════════════════════════════════════════   │
+│  COST ANALYSIS                                                                  │
+│  ═══════════════════════════════════════════════════════════════════════════   │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐    │
+│  │                                                                         │    │
+│  │  PER REVIEW BREAKDOWN                                                   │    │
+│  │  ┌─────────────────────────────────────────────────────────────────┐   │    │
+│  │  │                                                                 │   │    │
+│  │  │  LLM CALL          MODEL           COST        NOTES           │   │    │
+│  │  │  ─────────────────────────────────────────────────────────     │   │    │
+│  │  │  Triage            8B              $0.00005    Fast, cheap     │   │    │
+│  │  │  Security          70B             $0.0002     Deep analysis   │   │    │
+│  │  │  Performance       70B             $0.0002     Deep analysis   │   │    │
+│  │  │  Modernization     70B             $0.0002     Deep analysis   │   │    │
+│  │  │  Onboarding/Docs   8B              $0.00005    If used         │   │    │
+│  │  │  ─────────────────────────────────────────────────────────     │   │    │
+│  │  │  TOTAL             —               $0.0007     Per review      │   │    │
+│  │  │                                                                 │   │    │
+│  │  └─────────────────────────────────────────────────────────────────┘   │    │
+│  │                                                                         │    │
+│  │  SCALE ANALYSIS                                                         │    │
+│  │  ┌─────────────────────────────────────────────────────────────────┐   │    │
+│  │  │                                                                 │   │    │
+│  │  │  REVIEWS/MONTH    COST/MONTH     COST/YEAR     VIABILITY      │   │    │
+│  │  │  ─────────────────────────────────────────────────────────     │   │    │
+│  │  │  10               $0.007         $0.08         Free tier      │   │    │
+│  │  │  100              $0.07          $0.84         Free tier      │   │    │
+│  │  │  1,000            $0.70          $8.40         Very cheap     │   │    │
+│  │  │  10,000           $7.00          $84.00        Cheap          │   │    │
+│  │  │  100,000          $70.00         $840.00       Moderate       │   │    │
+│  │  │  1,000,000        $700.00        $8,400.00     Consider quota │   │    │
+│  │  │                                                                 │   │    │
+│  │  │  NOTE: Groq free tier = 1000 RPD                               │   │    │
+│  │  │  At 4 LLM calls per review = 250 reviews/day                  │   │    │
+│  │  │                                                                 │   │    │
+│  │  └─────────────────────────────────────────────────────────────────┘   │    │
+│  │                                                                         │    │
+│  └─────────────────────────────────────────────────────────────────────────┘    │
+│                                                                                 │
+│  ═══════════════════════════════════════════════════════════════════════════   │
+│  RATE LIMITING                                                                  │
+│  ═══════════════════════════════════════════════════════════════════════════   │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐    │
+│  │                                                                         │    │
+│  │  CURRENT IMPLEMENTATION                                                 │    │
+│  │  ┌─────────────────────────────────────────────────────────────────┐   │    │
+│  │  │                                                                 │   │    │
+│  │  │  ┌───────────────────────────────────────────────────────────┐  │   │    │
+│  │  │  │  AnalyzeWithRetry() in BaseSpecialistAgent               │  │   │    │
+│  │  │  │                                                           │  │   │    │
+│  │  │  │  ATTEMPT 1:                                              │  │   │    │
+│  │  │  │  ├── Try LLM call                                       │  │   │    │
+│  │  │  │  ├── IF success → return result                         │  │   │    │
+│  │  │  │  └── IF HTTP 429 → catch, wait 15s                     │  │   │    │
+│  │  │  │                                                           │  │   │    │
+│  │  │  │  ATTEMPT 2:                                              │  │   │    │
+│  │  │  │  ├── Try LLM call                                       │  │   │    │
+│  │  │  │  ├── IF success → return result                         │  │   │    │
+│  │  │  │  └── IF HTTP 429 → catch, wait 30s                     │  │   │    │
+│  │  │  │                                                           │  │   │    │
+│  │  │  │  ATTEMPT 3 (FINAL):                                     │  │   │    │
+│  │  │  │  ├── Try LLM call                                       │  │   │    │
+│  │  │  │  ├── IF success → return result                         │  │   │    │
+│  │  │  │  └── IF failure → THROW (no catch)                     │  │   │    │
+│  │  │  │                                                           │  │   │    │
+│  │  │  └───────────────────────────────────────────────────────────┘  │   │    │
+│  │  │                                                                 │   │    │
+│  │  │  CONFIGURATION:                                                │   │    │
+│  │  │  ├── PipelineConfig.ModelConfigs[].Rpm = rate limit           │   │    │
+│  │  │  ├── PipelineConfig.ModelConfigs[].Tpm = token limit          │   │    │
+│  │  │  └── Currently: defined but NOT enforced                      │   │    │
+│  │  │                                                                 │   │    │
+│  │  └─────────────────────────────────────────────────────────────────┘   │    │
+│  │                                                                         │    │
+│  └─────────────────────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## Status & Future Work
+## Status & Future Work — Roadmap Mind Map
 
-### What Works Now ✅
-
-✅ Full C# code review pipeline
-✅ 4 MCP tools (review_repo, ask_codebase, get_last_report, generate_docs)
-✅ CLI commands (review, ask, docs)
-✅ Parallel agent execution (3x faster than sequential)
-✅ Cross-agent deduplication (boosts important issues)
-✅ Caching (in-memory + disk)
-✅ Line number injection (LLMs know exact file:line)
-✅ Groq API integration
-✅ MCP stdio transport (OpenCode/Claude ready)
-
-### In Progress 🚧
-
-🚧 Python/Ruff integration
-  - Auto-detection of .py files (~30% done)
-  - Service endpoint (~20% done)
-  - Finding conversion (~10% done)
-  - Testing (not started)
-
-### Planned 🔮
-
-🔮 **RAG (Retrieval Augmented Generation)** — Context-aware answers from docs
-🔮 **Full Rate Limiting** — Token budget enforcement across all agents
-🔮 **Comprehensive Tests** — Unit + integration test coverage
-🔮 **Web Dashboard** — Browse reports, filter issues, track trends
-🔮 **CI/CD Integration** — GitHub Actions, GitLab CI plugins
-🔮 **Custom Rules** — Organization-specific security/performance rules
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                        DEVELOPMENT ROADMAP                                       │
+│                                                                                 │
+│  ═══════════════════════════════════════════════════════════════════════════   │
+│  ✅ WHAT WORKS TODAY (v1.0)                                                      │
+│  ═══════════════════════════════════════════════════════════════════════════   │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐    │
+│  │                                                                         │    │
+│  │  ┌───────────────────────────────────────────────────────────────────┐  │    │
+│  │  │  CORE PIPELINE                                                    │  │    │
+│  │  │  ✅ FilterStage — Git diff + Roslyn + relevance scoring          │  │    │
+│  │  │  ✅ TriageAgent — 8B model, routes to 1-3 specialists            │  │    │
+│  │  │  ✅ SecurityAgent — SQLi, XSS, secrets, crypto, auth             │  │    │
+│  │  │  ✅ PerformanceAgent — N+1, blocking, memory, O(n²)              │  │    │
+│  │  │  ✅ ModernizationAgent — SOLID, legacy, complexity, debt          │  │    │
+│  │  │  ✅ SynthesizeFindings — C# dedup, cross-agent boost             │  │    │
+│  │  └───────────────────────────────────────────────────────────────────┘  │    │
+│  │                                                                         │    │
+│  │  ┌───────────────────────────────────────────────────────────────────┐  │    │
+│  │  │  MCP SERVER                                                       │  │    │
+│  │  │  ✅ review_repo — Full pipeline execution                         │  │    │
+│  │  │  ✅ ask_codebase — OnboardingAgent Q&A                           │  │    │
+│  │  │  ✅ get_last_report — Cached results                              │  │    │
+│  │  │  ✅ generate_docs — DocumentationAgent output                    │  │    │
+│  │  │  ✅ 3-layer caching (memory + disk)                              │  │    │
+│  │  │  ✅ Stdio transport (OpenCode/Claude ready)                      │  │    │
+│  │  └───────────────────────────────────────────────────────────────────┘  │    │
+│  │                                                                         │    │
+│  │  ┌───────────────────────────────────────────────────────────────────┐  │    │
+│  │  │  INFRASTRUCTURE                                                   │  │    │
+│  │  │  ✅ Groq API integration (OpenAI-compatible)                     │  │    │
+│  │  │  ✅ Rate limit retry logic (3 attempts, 15s/30s backoff)         │  │    │
+│  │  │  ✅ Line number injection into diff content                      │  │    │
+│  │  │  ✅ Parallel agent execution (Task.WhenAll)                      │  │    │
+│  │  │  ✅ DI registration via ServiceCollectionExtensions              │  │    │
+│  │  │  ✅ Environment variable configuration (MULTIAGENT_ prefix)      │  │    │
+│  │  └───────────────────────────────────────────────────────────────────┘  │    │
+│  │                                                                         │    │
+│  └─────────────────────────────────────────────────────────────────────────┘    │
+│                                                                                 │
+│  ═══════════════════════════════════════════════════════════════════════════   │
+│  🚧 IN PROGRESS (v1.1)                                                          │
+│  ═══════════════════════════════════════════════════════════════════════════   │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐    │
+│  │                                                                         │    │
+│  │  ┌───────────────────────────────────────────────────────────────────┐  │    │
+│  │  │  PYTHON/RUFF INTEGRATION                                          │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  Status:                                                         │  │    │
+│  │  │  ├── Auto-detection of .py files in FilterStage     (~30%)      │  │    │
+│  │  │  ├── PythonRuffService HTTP endpoint                (~20%)      │  │    │
+│  │  │  ├── Ruff JSON → Finding object conversion          (~10%)      │  │    │
+│  │  │  ├── Merge logic in CodeReviewPipeline              (0%)        │  │    │
+│  │  │  └── Integration tests                               (0%)        │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  Files to modify:                                                 │  │    │
+│  │  │  ├── FilterStage.cs — add .py/.pyi/.pyx extensions              │  │    │
+│  │  │  ├── PipelineContext — add PythonFiles property                  │  │    │
+│  │  │  ├── CodeReviewPipeline.cs — add Stage 5                        │  │    │
+│  │  │  ├── NEW: IPythonRuffService (interface)                        │  │    │
+│  │  │  └── NEW: PythonRuffService (implementation)                    │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  See Python/Ruff Integration section above for full details     │  │    │
+│  │  └───────────────────────────────────────────────────────────────────┘  │    │
+│  │                                                                         │    │
+│  └─────────────────────────────────────────────────────────────────────────┘    │
+│                                                                                 │
+│  ═══════════════════════════════════════════════════════════════════════════   │
+│  🔮 PLANNED (v2.0+)                                                             │
+│  ═══════════════════════════════════════════════════════════════════════════   │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐    │
+│  │                                                                         │    │
+│  │  ┌───────────────────────────────────────────────────────────────────┐  │    │
+│  │  │  HIGH PRIORITY                                                    │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  🔮 RAG (Retrieval Augmented Generation)                         │  │    │
+│  │  │     ├── IKnowledgeSearchTool interface exists (not implemented)  │  │    │
+│  │  │     ├── Vector store for code embeddings                         │  │    │
+│  │  │     ├── Context-aware answers from documentation                 │  │    │
+│  │  │     └── Enables: "How does auth work across the codebase?"      │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  🔮 Full Rate Limiting                                            │  │    │
+│  │  │     ├── ILlmClient interface exists (not implemented)            │  │    │
+│  │  │     ├── Token budget enforcement per agent                       │  │    │
+│  │  │     ├── RPM/TPM tracking per model                               │  │    │
+│  │  │     └── Graceful degradation when quota exceeded                 │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  🔮 Comprehensive Tests                                           │  │    │
+│  │  │     ├── Unit tests for each agent                                │  │    │
+│  │  │     ├── Integration tests for pipeline                           │  │    │
+│  │  │     ├── Mock LLM responses for deterministic testing             │  │    │
+│  │  │     └── CI/CD test automation                                    │  │    │
+│  │  └───────────────────────────────────────────────────────────────────┘  │    │
+│  │                                                                         │    │
+│  │  ┌───────────────────────────────────────────────────────────────────┐  │    │
+│  │  │  MEDIUM PRIORITY                                                  │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  🔮 Web Dashboard                                                 │  │    │
+│  │  │     ├── Browse past reports                                      │  │    │
+│  │  │     ├── Filter by severity/agent/file                           │  │    │
+│  │  │     ├── Track trends over time                                   │  │    │
+│  │  │     └── Integration with GitHub/GitLab PRs                      │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  🔮 CI/CD Integration                                             │  │    │
+│  │  │     ├── GitHub Actions workflow                                  │  │    │
+│  │  │     ├── GitLab CI pipeline                                       │  │    │
+│  │  │     ├── Azure DevOps extension                                  │  │    │
+│  │  │     └── Automatic PR comments with findings                     │  │    │
+│  │  └───────────────────────────────────────────────────────────────────┘  │    │
+│  │                                                                         │    │
+│  │  ┌───────────────────────────────────────────────────────────────────┐  │    │
+│  │  │  LOW PRIORITY                                                     │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  🔮 Custom Rules                                                  │  │    │
+│  │  │     ├── Organization-specific security rules                     │  │    │
+│  │  │     ├── Custom performance patterns                              │  │    │
+│  │  │     └── Configurable via YAML/JSON                              │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  🔮 Additional Language Support                                   │  │    │
+│  │  │     ├── TypeScript/JavaScript (via ESLint)                      │  │    │
+│  │  │     ├── Go (via staticcheck)                                     │  │    │
+│  │  │     ├── Rust (via clippy)                                        │  │    │
+│  │  │     └── Java (via SpotBugs)                                      │  │    │
+│  │  └───────────────────────────────────────────────────────────────────┘  │    │
+│  │                                                                         │    │
+│  └─────────────────────────────────────────────────────────────────────────┘    │
+│                                                                                 │
+│  ═══════════════════════════════════════════════════════════════════════════   │
+│  KNOWN ISSUES (Things to Fix)                                                   │
+│  ═══════════════════════════════════════════════════════════════════════════   │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐    │
+│  │                                                                         │    │
+│  │  ⚠️ Orphaned Code:                                                      │    │
+│  │  ├── SynthesisAgent — exists but pipeline uses C# dedup instead      │    │
+│  │  ├── LogicAgent — exists but triage never routes to it               │    │
+│  │  └── ILlmClient — interface defined but not implemented              │    │
+│  │                                                                         │    │
+│  │  ⚠️ Thread Safety:                                                      │    │
+│  │  └── _pipelineCache and _reportCache use Dictionary (not Concurrent) │    │
+│  │                                                                         │    │
+│  │  ⚠️ Error Handling:                                                      │    │
+│  │  └── MCP tools have no try/catch — exceptions propagate to client    │    │
+│  │                                                                         │    │
+│  │  ⚠️ DI Issues:                                                           │    │
+│  │  └── IGitOperationsTool registered but FilterStage creates via new   │    │
+│  │                                                                         │    │
+│  └─────────────────────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## Architecture Decisions
+## Architecture Decisions — Design Mind Map
 
-### Why 8B LLM for Triage?
-
-Routing is simpler than analysis. 8B model is fast (2-3s) and cheap. 70B reserved for deep analysis.
-
-### Why Parallel Specialists?
-
-Sequential (15-20s) vs Parallel (5-8s) = 3x faster. Uses 3x quota simultaneously, but worth it.
-
-### Why C# Dedup Instead of LLM?
-
-LLM synthesis: 5-8s, expensive. C# dedup: <1ms, free. Deterministic and reliable.
-
-### Why Separate Python/Ruff Service?
-
-Decoupled = independent scaling, upgrading, disabling. No Python dependency on C# machines.
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                        KEY ARCHITECTURE DECISIONS                                │
+│                                                                                 │
+│  ═══════════════════════════════════════════════════════════════════════════   │
+│  DECISION 1: WHY 8B LLM FOR TRIAGE?                                             │
+│  ═══════════════════════════════════════════════════════════════════════════   │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐    │
+│  │                                                                         │    │
+│  │  ┌───────────────────────────────────────────────────────────────────┐  │    │
+│  │  │                                                                   │  │    │
+│  │  │  TRIAGE TASK: "Which agents should review this diff?"            │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  Input:  List of changed files + diff summary                    │  │    │
+│  │  │  Output: ["SECURITY", "PERFORMANCE"] (JSON array)                │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  Complexity: SIMPLE                                              │  │    │
+│  │  │  ├── No code analysis needed                                    │  │    │
+│  │  │  ├── No vulnerability detection                                 │  │    │
+│  │  │  ├── No performance profiling                                   │  │    │
+│  │  │  └── Just pattern matching + routing                            │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  WHY 8B?                                                         │  │    │
+│  │  │  ├── 8B is FAST: 2-3s vs 70B's 5-8s                           │  │    │
+│  │  │  ├── 8B is CHEAP: ~$0.00005 vs 70B's ~$0.0002                 │  │    │
+│  │  │  ├── 8B is ACCURATE: routing is simple classification          │  │    │
+│  │  │  └── 8B is ENOUGH: 70B is overkill for this task               │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  TRADEOFF:                                                        │  │    │
+│  │  │  ├── 8B might misroute: "security" issue sent to performance   │  │    │
+│  │  │  └── MITIGATION: default to ALL 3 agents on parse failure      │  │    │
+│  │  │                                                                   │  │    │
+│  │  └───────────────────────────────────────────────────────────────────┘  │    │
+│  │                                                                         │    │
+│  └─────────────────────────────────────────────────────────────────────────┘    │
+│                                                                                 │
+│  ═══════════════════════════════════════════════════════════════════════════   │
+│  DECISION 2: WHY PARALLEL SPECIALISTS?                                          │
+│  ═══════════════════════════════════════════════════════════════════════════   │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐    │
+│  │                                                                         │    │
+│  │  ┌───────────────────────────────────────────────────────────────────┐  │    │
+│  │  │                                                                   │  │    │
+│  │  │  SEQUENTIAL (Before):                                             │  │    │
+│  │  │  ┌─────────┐  ┌─────────┐  ┌─────────┐                          │  │    │
+│  │  │  │Security │─▶│Perform. │─▶│Modern.  │                          │  │    │
+│  │  │  │  5-8s   │  │  5-8s   │  │  5-8s   │                          │  │    │
+│  │  │  └─────────┘  └─────────┘  └─────────┘                          │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  TOTAL: 15-24 seconds (plus 2s delays between)                  │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  ─────────────────────────────────────────────────────────────   │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  PARALLEL (After):                                                │  │    │
+│  │  │  ┌─────────┐                                                     │  │    │
+│  │  │  │Security │┐                                                    │  │    │
+│  │  │  │  5-8s   ││                                                    │  │    │
+│  │  │  └─────────┘│                                                    │  │    │
+│  │  │  ┌─────────┐├──── Task.WhenAll ────▶ Results                    │  │    │
+│  │  │  │Perform. ││     (all at once)                                  │  │    │
+│  │  │  │  5-8s   ││                                                    │  │    │
+│  │  │  └─────────┘│                                                    │  │    │
+│  │  │  ┌─────────┐│                                                    │  │    │
+│  │  │  │Modern.  │┘                                                    │  │    │
+│  │  │  │  5-8s   │                                                     │  │    │
+│  │  │  └─────────┘                                                     │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  TOTAL: 5-8 seconds (limited by slowest agent)                  │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  SPEEDUP: 3x faster                                              │  │    │
+│  │  │  COST: 3x quota (all agents use quota simultaneously)           │  │    │
+│  │  │  BENEFIT: 3x faster reviews, better developer experience        │  │    │
+│  │  │                                                                   │  │    │
+│  │  └───────────────────────────────────────────────────────────────────┘  │    │
+│  │                                                                         │    │
+│  └─────────────────────────────────────────────────────────────────────────┘    │
+│                                                                                 │
+│  ═══════════════════════════════════════════════════════════════════════════   │
+│  DECISION 3: WHY C# DEDUP INSTEAD OF LLM?                                      │
+│  ═══════════════════════════════════════════════════════════════════════════   │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐    │
+│  │                                                                         │    │
+│  │  ┌───────────────────────────────────────────────────────────────────┐  │    │
+│  │  │                                                                   │  │    │
+│  │  │  LLM SYNTHESIS (SynthesisAgent — ORPHANED):                      │  │    │
+│  │  │  ├── Input: All findings from 3 agents                          │  │    │
+│  │  │  ├── LLM reads: "Merge these findings into a coherent report"   │  │    │
+│  │  │  ├── Output: Synthesized report                                  │  │    │
+│  │  │  ├── Time: 5-8 seconds                                           │  │    │
+│  │  │  ├── Cost: ~$0.0002                                              │  │    │
+│  │  │  └── Problem: Non-deterministic, can miss duplicates             │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  ─────────────────────────────────────────────────────────────   │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  C# DEDUP (SynthesizeFindings — ACTUAL):                        │  │    │
+│  │  │  ├── Input: All findings from 3 agents                          │  │    │
+│  │  │  ├── Logic: Group by (File, Line), merge, boost                 │  │    │
+│  │  │  ├── Output: Deduplicated, sorted findings                       │  │    │
+│  │  │  ├── Time: <1 millisecond                                        │  │    │
+│  │  │  ├── Cost: FREE                                                  │  │    │
+│  │  │  └── Benefit: Deterministic, reliable, always correct            │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  WHY C# DEDUP WON:                                               │  │    │
+│  │  │  ├── 5000x faster (<1ms vs 5-8s)                                │  │    │
+│  │  │  ├── 100% free ($0 vs $0.0002)                                  │  │    │
+│  │  │  ├── Deterministic (same input → same output)                    │  │    │
+│  │  │  ├── Reliable (no LLM hallucination)                            │  │    │
+│  │  │  └── Cross-agent boost: 2+ agents agree → CRITICAL              │  │    │
+│  │  │                                                                   │  │    │
+│  │  └───────────────────────────────────────────────────────────────────┘  │    │
+│  │                                                                         │    │
+│  └─────────────────────────────────────────────────────────────────────────┘    │
+│                                                                                 │
+│  ═══════════════════════════════════════════════════════════════════════════   │
+│  DECISION 4: WHY SEPARATE PYTHON/RUFF SERVICE?                                  │
+│  ═══════════════════════════════════════════════════════════════════════════   │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐    │
+│  │                                                                         │    │
+│  │  ┌───────────────────────────────────────────────────────────────────┐  │    │
+│  │  │                                                                   │  │    │
+│  │  │  OPTION A: EMBEDDED (Python.NET)                                  │  │    │
+│  │  │  ├── Pros: Single process, simplest deployment                   │  │    │
+│  │  │  ├── Cons: Requires Python on C# machines                       │  │    │
+│  │  │  └── Risk: Python version conflicts, GIL issues                 │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  ─────────────────────────────────────────────────────────────   │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  OPTION B: PROCESS INVOCATION                                    │  │    │
+│  │  │  ├── Pros: Simple, no extra service                            │  │    │
+│  │  │  ├── Cons: Requires ruff installed, process overhead            │  │    │
+│  │  │  └── Risk: Process crashes, timeout issues                     │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  ─────────────────────────────────────────────────────────────   │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  OPTION C: HTTP SERVICE (CHOSEN)                                 │  │    │
+│  │  │  ├── Pros: Independent scaling, language agnostic               │  │    │
+│  │  │  ├── Cons: Extra process to manage                              │  │    │
+│  │  │  └── Benefit: Can upgrade ruff independently                    │  │    │
+│  │  │                                                                   │  │    │
+│  │  │  WHY HTTP SERVICE WON:                                           │  │    │
+│  │  │  ├── Decoupled: upgrade ruff without touching C#                │  │    │
+│  │  │  ├── Scalable: can run on separate machine                     │  │    │
+│  │  │  ├── Language agnostic: could be Python, Node, Go, Rust        │  │    │
+│  │  │  ├── Testable: can test service independently                   │  │    │
+│  │  │  └── Disable-able: turn off Python support without breaking   │  │    │
+│  │  │                                                                   │  │    │
+│  │  └───────────────────────────────────────────────────────────────────┘  │    │
+│  │                                                                         │    │
+│  └─────────────────────────────────────────────────────────────────────────┘    │
+│                                                                                 │
+│  ═══════════════════════════════════════════════════════════════════════════   │
+│  DECISION 5: WHY MCP OVER HTTP/SSE?                                             │
+│  ═══════════════════════════════════════════════════════════════════════════   │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐    │
+│  │                                                                         │    │
+│  │  ┌───────────────────────────────────────────────────────────────────┐  │    │
+│  │  │                                                                   │  │    │
+│  │  │  STDIO TRANSPORT (CHOSEN):                                        │  │    │
+│  │  │  ├── No ports to manage                                          │  │    │
+│  │  │  ├── No firewall issues                                          │  │    │
+│  │  │  ├── Process lifecycle managed by MCP client                     │  │    │
+│  │  │  ├── Works with OpenCode, Claude Desktop, VS Code                │  │    │
+│  │  │  └── Simple: just run `dotnet run` and communicate via stdin/out│  │    │
+│  │  │                                                                   │  │    │
+│  │  │  HTTP/SSE (NOT CHOSEN):                                          │  │    │
+│  │  │  ├── Requires port management                                    │  │    │
+│  │  │  ├── Firewall configuration needed                              │  │    │
+│  │  │  ├── More complex deployment                                    │  │    │
+│  │  │  └── Better for: shared server scenarios                        │  │    │
+│  │  │                                                                   │  │    │
+│  │  └───────────────────────────────────────────────────────────────────┘  │    │
+│  │                                                                         │    │
+│  └─────────────────────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
