@@ -50,6 +50,12 @@ public class CodeReviewPipeline
 
         _logger?.LogInformation("Filtered to {Count} relevant files", context.ChangedFiles.Count);
 
+        if (context.ChangedFiles.Count == 0)
+        {
+            _logger?.LogWarning("No relevant files found in diff. Skipping analysis.");
+            return new ReviewOutput(context, new AgentResult(new List<Finding>(), "No relevant files found in the commit diff. Nothing to review."));
+        }
+
         _logger?.LogInformation("Stage 2: Triaging changes...");
         var triageAgent = _agentFactory.CreateTriageAgent();
         var triageResult = await triageAgent.ClassifyAsync(context, cancellationToken);

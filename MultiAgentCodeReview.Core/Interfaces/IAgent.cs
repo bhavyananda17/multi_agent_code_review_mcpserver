@@ -79,7 +79,7 @@ public interface ICodeAnalysisTool
 public interface IGitOperationsTool
 {
     Task<GitDiff> GetDiffAsync(string fromRef, string toRef = "HEAD");
-    Task<List<string>> GetChangedFilesAsync(string fromRef = "HEAD~1");
+    Task<List<string>> GetChangedFilesAsync(string fromRef = "HEAD~1", string toRef = "HEAD");
     Task<List<BlameLine>> GetBlameAsync(string filePath);
     Task<List<Commit>> GetFileHistoryAsync(string filePath, int limit = 10);
 }

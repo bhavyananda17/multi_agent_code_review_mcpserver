@@ -19,9 +19,9 @@ public class GitOperationsTool : IGitOperationsTool
         return ParseDiffOutput(output);
     }
 
-    public async Task<List<string>> GetChangedFilesAsync(string fromRef = "HEAD~1")
+    public async Task<List<string>> GetChangedFilesAsync(string fromRef = "HEAD~1", string toRef = "HEAD")
     {
-        var output = await RunGitCommandAsync($"diff --name-only {fromRef} HEAD");
+        var output = await RunGitCommandAsync($"diff --name-only {fromRef} {toRef}");
         return output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
     }
 

@@ -22,10 +22,10 @@ public class FilterStage
         int minFiles = 5,
         CancellationToken cancellationToken = default)
     {
-        var fromRef = baseCommit ?? "HEAD~1";
+        var fromRef = baseCommit ?? $"{commitHash}~1";
         var git = new Tools.GitOperationsTool(repositoryPath);
         var diff = await git.GetDiffAsync(fromRef, commitHash);
-        var changedFiles = await git.GetChangedFilesAsync(fromRef);
+        var changedFiles = await git.GetChangedFilesAsync(fromRef, commitHash);
 
         var sourceExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {

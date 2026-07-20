@@ -8,6 +8,9 @@ obj/
 # Review cache
 .review-cache.json
 
+# Ruff cache
+.ruff_cache/
+
 # IDE
 .vs/
 .vscode/

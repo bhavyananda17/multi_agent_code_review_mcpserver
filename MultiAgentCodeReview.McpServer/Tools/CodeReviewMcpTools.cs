@@ -29,10 +29,7 @@ public class CodeReviewMcpTools
         [Description("The commit to review (HEAD, sha, branch name)")] string commit_hash,
         [Description("Base to diff against (defaults to commit_hash~1)")] string base_commit = "")
     {
-        if (string.IsNullOrWhiteSpace(base_commit))
-            base_commit = "HEAD~1";
-
-        var output = await _pipeline.RunReviewAsync(repo_path, commit_hash, base_commit);
+        var output = await _pipeline.RunReviewAsync(repo_path, commit_hash, string.IsNullOrWhiteSpace(base_commit) ? null : base_commit);
 
         _pipelineCache[repo_path] = output;
 
@@ -96,9 +93,6 @@ public class CodeReviewMcpTools
         [Description("The commit to document (HEAD, sha, branch name)")] string commit_hash,
         [Description("Base to diff against (defaults to commit_hash~1)")] string base_commit = "")
     {
-        if (string.IsNullOrWhiteSpace(base_commit))
-            base_commit = "HEAD~1";
-
         ReviewOutput output;
         if (_pipelineCache.TryGetValue(repo_path, out var cached) && cached.Context.CommitHash == commit_hash)
         {
@@ -106,7 +100,7 @@ public class CodeReviewMcpTools
         }
         else
         {
-            output = await _pipeline.RunReviewAsync(repo_path, commit_hash, base_commit);
+            output = await _pipeline.RunReviewAsync(repo_path, commit_hash, string.IsNullOrWhiteSpace(base_commit) ? null : base_commit);
             _pipelineCache[repo_path] = output;
         }
 
