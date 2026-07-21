@@ -121,7 +121,15 @@ public class CodeReviewPipeline
                 .Select(f => f with { Agents = new List<string> { pair.AgentName } }))
             .ToList();
 
-        var grouped = allTaggedFindings
+        var locatedFindings = allTaggedFindings
+            .Where(f => !string.IsNullOrEmpty(f.File) && f.Line > 0)
+            .ToList();
+
+        var unlocatedFindings = allTaggedFindings
+            .Where(f => string.IsNullOrEmpty(f.File) || f.Line <= 0)
+            .ToList();
+
+        var grouped = locatedFindings
             .GroupBy(f => new { f.File, f.Line })
             .ToList();
 
@@ -176,6 +184,7 @@ public class CodeReviewPipeline
         }
 
         var sorted = dedupedFindings
+            .Concat(unlocatedFindings)
             .OrderByDescending(f => f.Severity)
             .ThenBy(f => f.File)
             .ThenBy(f => f.Line)
@@ -185,12 +194,14 @@ public class CodeReviewPipeline
         var highCount = sorted.Count(f => f.Severity == Severity.High);
         var medCount = sorted.Count(f => f.Severity == Severity.Medium);
         var lowCount = sorted.Count(f => f.Severity == Severity.Low);
-        var fileCount = sorted.Select(f => f.File).Distinct().Count();
+        var fileCount = sorted.Select(f => f.File).Where(f => !string.IsNullOrEmpty(f)).Distinct().Count();
 
         var summary = new StringBuilder();
         summary.Append($"Reviewed {context.ChangedFiles.Count} files. ");
         summary.Append($"Found {sorted.Count} findings across {fileCount} files: ");
         summary.Append($"{critCount} critical, {highCount} high, {medCount} medium, {lowCount} low.");
+        if (unlocatedFindings.Count > 0)
+            summary.Append($" {unlocatedFindings.Count} finding(s) could not be matched to a specific line.");
         if (crossAgentBoosts > 0)
             summary.Append($" {crossAgentBoosts} finding(s) boosted to Critical via cross-agent agreement.");
 
