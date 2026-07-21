@@ -109,7 +109,7 @@ graph LR
 |-------|-------------|-------------------|
 | **Filter** | Git diff + Roslyn dependency graph → source files only | `FilterStage.cs` — excludes `.md`, `.json`, `.xml`, etc. |
 | **Triage** | 8B model classifies diff, routes to 1-3 specialists | `TriageAgent.cs` — outputs `{"selected_agents":[...]}` |
-| **Specialists** | 3 agents run in parallel via `Task.WhenAll` | Each agent gets its own Groq API key for true parallelism |
+| **Specialists** | 3 agents run in parallel via `Task.WhenAll` | Each agent works on the 80b model thorugh Groq API  |
 | **Dedup** | C# code merges findings, boosts cross-agent agreement | `CodeReviewPipeline.cs` — no LLM call needed |
 
 ### Agent-Computer Interface (ACI)
