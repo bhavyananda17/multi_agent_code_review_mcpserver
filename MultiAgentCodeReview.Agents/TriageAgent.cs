@@ -102,7 +102,6 @@ public class TriageAgent : MultiAgentCodeReview.Core.Interfaces.ITriageAgent
             "SECURITY" => "SecurityAgent",
             "PERFORMANCE" => "PerformanceAgent",
             "MODERNIZATION" => "ModernizationAgent",
-            "LOGIC" => "LogicAgent",
             _ when agentName.EndsWith("Agent") => agentName,
             _ => null
         };

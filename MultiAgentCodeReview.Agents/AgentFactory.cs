@@ -33,13 +33,6 @@ public class AgentFactory
         return new SecurityAgent(agent);
     }
 
-    public MultiAgentCodeReview.Core.Interfaces.ISpecialistAgent CreateLogicAgent()
-    {
-        var modelConfig = GetModelConfig("logic");
-        var agent = CreateOpenAIAgent(modelConfig, "LogicAgent", AgentPrompts.LogicSystemPrompt);
-        return new LogicAgent(agent);
-    }
-
     public MultiAgentCodeReview.Core.Interfaces.ISpecialistAgent CreatePerformanceAgent()
     {
         var modelConfig = GetModelConfig("performance");
@@ -52,13 +45,6 @@ public class AgentFactory
         var modelConfig = GetModelConfig("modernization");
         var agent = CreateOpenAIAgent(modelConfig, "ModernizationAgent", AgentPrompts.ModernizationSystemPrompt);
         return new ModernizationAgent(agent);
-    }
-
-    public MultiAgentCodeReview.Core.Interfaces.ISynthesisAgent CreateSynthesisAgent()
-    {
-        var modelConfig = GetModelConfig("synthesis");
-        var agent = CreateOpenAIAgent(modelConfig, "SynthesisAgent", AgentPrompts.SynthesisSystemPrompt);
-        return new SynthesisAgent(agent);
     }
 
     public MultiAgentCodeReview.Core.Interfaces.IDocumentationAgent CreateDocumentationAgent()
@@ -83,7 +69,8 @@ public class AgentFactory
 
         var options = new OpenAIClientOptions
         {
-            Endpoint = new Uri(_config.BaseUrl)
+            Endpoint = new Uri(_config.BaseUrl),
+            NetworkTimeout = TimeSpan.FromSeconds(90)
         };
 
         var chatClient = new ChatClient(modelConfig.ModelId, apiKey, options);

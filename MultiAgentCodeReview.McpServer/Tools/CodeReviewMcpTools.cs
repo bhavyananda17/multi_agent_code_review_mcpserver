@@ -107,7 +107,10 @@ public class CodeReviewMcpTools
         var docAgent = _agentFactory.CreateDocumentationAgent();
         var docs = await docAgent.GenerateDocumentationAsync(output.Context, output.Result);
 
-        var reportPath = Path.Combine(repo_path, "AGENT_REPORT.md");
+        var reportsDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Documents", "CodeReviewReports");
+        Directory.CreateDirectory(reportsDir);
+        var repoFolder = new DirectoryInfo(repo_path).Name;
+        var reportPath = Path.Combine(reportsDir, $"{repoFolder}_AGENT_REPORT.md");
         await File.WriteAllTextAsync(reportPath, docs);
 
         return $"Documentation saved to {reportPath}\n\n{docs}";
@@ -124,6 +127,37 @@ public class CodeReviewMcpTools
         sb.AppendLine($"**Commit:** {output.Context.CommitHash}");
         sb.AppendLine($"**Base:** {output.Context.BaseCommit ?? "HEAD~1"}");
         sb.AppendLine($"**Total Findings:** {findings?.Count ?? 0}");
+        sb.AppendLine();
+
+        // Health score
+        var critCount = findings?.Count(f => f.Severity == Severity.Critical) ?? 0;
+        var highCount = findings?.Count(f => f.Severity == Severity.High) ?? 0;
+        var medCount = findings?.Count(f => f.Severity == Severity.Medium) ?? 0;
+        var lowCount = findings?.Count(f => f.Severity == Severity.Low) ?? 0;
+
+        var score = Math.Max(0, 100 - (critCount * 20) - (highCount * 10) - (medCount * 5) - (lowCount * 2));
+        var grade = score >= 90 ? "A" : score >= 80 ? "B" : score >= 70 ? "C" : score >= 60 ? "D" : "F";
+        var verdict = grade switch
+        {
+            "A" => "Excellent — no issues found.",
+            "B" => "Good — minor issues, address when convenient.",
+            "C" => "Fair — some issues should be addressed this sprint.",
+            "D" => "Poor — significant issues need attention.",
+            _ => "Critical — do not merge until issues are resolved."
+        };
+
+        sb.AppendLine("## Health Score");
+        sb.AppendLine();
+        sb.AppendLine("| | |");
+        sb.AppendLine("|---|---|");
+        sb.AppendLine($"| **Score** | {score}/100 |");
+        sb.AppendLine($"| **Grade** | {grade} |");
+        sb.AppendLine($"| **Critical** | {critCount} |");
+        sb.AppendLine($"| **High** | {highCount} |");
+        sb.AppendLine($"| **Medium** | {medCount} |");
+        sb.AppendLine($"| **Low** | {lowCount} |");
+        sb.AppendLine();
+        sb.AppendLine($"> Code quality is **{verdict.ToLowerInvariant()}** {verdict}");
         sb.AppendLine();
 
         // Executive summary from synthesis agent
@@ -193,18 +227,27 @@ public class CodeReviewMcpTools
                 f.Category == FindingCategory.ArchitectureDebt ||
                 f.Category == FindingCategory.OutdatedDependencies).ToList();
 
+            sb.AppendLine("---");
+            sb.AppendLine();
+            sb.AppendLine("## Modernization Roadmap");
+            sb.AppendLine();
+
             if (modernizationFindings.Any())
             {
-                sb.AppendLine("---");
-                sb.AppendLine();
-                sb.AppendLine("## Modernization Roadmap");
-                sb.AppendLine();
                 sb.AppendLine("### Project-Wide Modernization Opportunities");
                 sb.AppendLine();
                 foreach (var finding in modernizationFindings)
                 {
                     FormatModernizationFinding(sb, finding);
                 }
+            }
+            else
+            {
+                sb.AppendLine("### Modernization Status: No Action Required");
+                sb.AppendLine();
+                sb.AppendLine("The codebase was analyzed for modernization opportunities including legacy patterns, outdated frameworks, missing modern language features, architecture debt, and outdated dependencies.");
+                sb.AppendLine();
+                sb.AppendLine("**Result:** No modernization issues detected. The code follows current best practices and uses up-to-date patterns and dependencies.");
             }
         }
         else
@@ -224,9 +267,11 @@ public class CodeReviewMcpTools
                 ? $"`{finding.File}`"
                 : "(location not determined)";
 
+        var confidenceEmoji = finding.Confidence >= 0.7 ? "🟢" : finding.Confidence >= 0.4 ? "🟡" : "🔴";
+
         sb.AppendLine($"### [{finding.Severity}] {finding.Category}");
         sb.AppendLine($"- **File:** {location}");
-        sb.AppendLine($"- **Confidence:** {finding.Confidence:P0}");
+        sb.AppendLine($"- **Confidence:** {confidenceEmoji} {finding.Confidence:P0}");
         sb.AppendLine();
         sb.AppendLine(finding.Description);
         sb.AppendLine();
@@ -240,7 +285,7 @@ public class CodeReviewMcpTools
         if (!string.IsNullOrEmpty(finding.CodeSnippet))
         {
             sb.AppendLine("**Current Code:**");
-            sb.AppendLine("```");
+            sb.AppendLine("```csharp");
             sb.AppendLine(finding.CodeSnippet);
             sb.AppendLine("```");
             sb.AppendLine();
@@ -250,8 +295,8 @@ public class CodeReviewMcpTools
         {
             if (!string.IsNullOrEmpty(finding.FixExample.Before))
             {
-                sb.AppendLine("**Before:**");
-                sb.AppendLine("```");
+                sb.AppendLine("**Before (Vulnerable / Problematic):**");
+                sb.AppendLine("```csharp");
                 sb.AppendLine(finding.FixExample.Before);
                 sb.AppendLine("```");
                 sb.AppendLine();
@@ -259,11 +304,20 @@ public class CodeReviewMcpTools
             if (!string.IsNullOrEmpty(finding.FixExample.After))
             {
                 sb.AppendLine("**After (Recommended Fix):**");
-                sb.AppendLine("```");
+                sb.AppendLine("```csharp");
                 sb.AppendLine(finding.FixExample.After);
                 sb.AppendLine("```");
                 sb.AppendLine();
             }
+        }
+        else if (!string.IsNullOrEmpty(finding.CodeSnippet))
+        {
+            sb.AppendLine("**Suggested Fix:**");
+            sb.AppendLine("```csharp");
+            sb.AppendLine($"// Apply the recommendation: {finding.Recommendation}");
+            sb.AppendLine($"// Refactor the code at {location}");
+            sb.AppendLine("```");
+            sb.AppendLine();
         }
 
         if (finding.Impact != null && finding.Impact.Count > 0)
@@ -334,13 +388,33 @@ public class CodeReviewMcpTools
             sb.AppendLine();
         }
 
-        if (finding.FixExample != null && !string.IsNullOrEmpty(finding.FixExample.After))
+        if (!string.IsNullOrEmpty(finding.CodeSnippet))
         {
-            sb.AppendLine("**Modern Alternative:**");
-            sb.AppendLine("```");
-            sb.AppendLine(finding.FixExample.After);
+            sb.AppendLine("**Current Code:**");
+            sb.AppendLine("```csharp");
+            sb.AppendLine(finding.CodeSnippet);
             sb.AppendLine("```");
             sb.AppendLine();
+        }
+
+        if (finding.FixExample != null && (!string.IsNullOrEmpty(finding.FixExample.Before) || !string.IsNullOrEmpty(finding.FixExample.After)))
+        {
+            if (!string.IsNullOrEmpty(finding.FixExample.Before))
+            {
+                sb.AppendLine("**Before (Legacy Pattern):**");
+                sb.AppendLine("```csharp");
+                sb.AppendLine(finding.FixExample.Before);
+                sb.AppendLine("```");
+                sb.AppendLine();
+            }
+            if (!string.IsNullOrEmpty(finding.FixExample.After))
+            {
+                sb.AppendLine("**After (Modern Alternative):**");
+                sb.AppendLine("```csharp");
+                sb.AppendLine(finding.FixExample.After);
+                sb.AppendLine("```");
+                sb.AppendLine();
+            }
         }
 
         sb.AppendLine();

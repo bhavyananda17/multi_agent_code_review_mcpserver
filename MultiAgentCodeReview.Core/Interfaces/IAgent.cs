@@ -18,14 +18,6 @@ public interface ISpecialistAgent : IAgent
     List<string> TriggerCategories { get; }
 }
 
-public interface ISynthesisAgent : IAgent
-{
-    Task<AgentResult> SynthesizeAsync(
-        List<AgentResult> specialistResults,
-        PipelineContext context,
-        CancellationToken cancellationToken = default);
-}
-
 public interface IDocumentationAgent : IAgent
 {
     Task<string> GenerateDocumentationAsync(
@@ -58,14 +50,6 @@ public interface ILlmClient
         double temperature = 0.2,
         int maxTokens = 2000,
         CancellationToken cancellationToken = default) where T : class;
-}
-
-public interface IKnowledgeSearchTool
-{
-    Task<List<CodeSnippet>> SearchCodeAsync(string query, int topK = 5);
-    Task<List<Document>> SearchDocumentationAsync(string query, int topK = 3);
-    Task<List<CodePattern>> FindSimilarPatternsAsync(string codeSnippet, int topK = 5);
-    Task<List<VulnerabilityInfo>> SearchVulnerabilitiesAsync(string pattern);
 }
 
 public interface ICodeAnalysisTool

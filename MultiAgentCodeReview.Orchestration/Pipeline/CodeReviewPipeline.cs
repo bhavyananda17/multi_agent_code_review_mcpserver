@@ -83,8 +83,6 @@ public class CodeReviewPipeline
 
         if (routeTo.Contains("SecurityAgent"))
             agents.Add(_agentFactory.CreateSecurityAgent());
-        if (routeTo.Contains("LogicAgent"))
-            agents.Add(_agentFactory.CreateLogicAgent());
         if (routeTo.Contains("PerformanceAgent"))
             agents.Add(_agentFactory.CreatePerformanceAgent());
         if (routeTo.Contains("ModernizationAgent"))
@@ -95,7 +93,6 @@ public class CodeReviewPipeline
             agents.AddRange(new ISpecialistAgent[]
             {
                 _agentFactory.CreateSecurityAgent(),
-                _agentFactory.CreateLogicAgent(),
                 _agentFactory.CreatePerformanceAgent(),
                 _agentFactory.CreateModernizationAgent()
             });
@@ -104,8 +101,10 @@ public class CodeReviewPipeline
         _logger?.LogInformation("Running {Count} specialist agents in parallel: {Agents}",
             agents.Count, string.Join(", ", agents.Select(a => a.Name)));
 
-        var tasks = agents.Select(async agent =>
+        var tasks = agents.Select(async (agent, index) =>
         {
+            if (index > 0)
+                await Task.Delay(15000 * index, cancellationToken);
             var result = await AnalyzeWithRetryAsync(agent, context, cancellationToken);
             _logger?.LogInformation("  {Agent} completed with {Count} findings", agent.Name, result.Findings.Count);
             return (agent.Name, Result: result);
@@ -205,15 +204,33 @@ public class CodeReviewPipeline
         {
             try
             {
-                return await agent.AnalyzeAsync(context, ct);
+                using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
+                using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
+                return await agent.AnalyzeAsync(context, linkedCts.Token);
             }
-            catch (Exception ex) when (attempt < 2 && ex.Message.Contains("429"))
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            {
+                _logger?.LogWarning("Agent {Agent} timed out after 120s on attempt {Attempt}", agent.Name, attempt + 1);
+                if (attempt < 2)
+                {
+                    await Task.Delay(5000, ct);
+                    continue;
+                }
+                return new AgentResult(new List<Finding>(), $"Agent {agent.Name} timed out after 120s");
+            }
+            catch (Exception ex) when (attempt < 2 && IsRateLimit(ex))
             {
                 var delay = (attempt + 1) * 15000;
-                _logger?.LogWarning("Rate limited on {Agent}, retrying in {Delay}s", agent.Name, delay / 1000);
+                _logger?.LogWarning("Rate limited on {Agent}, retrying in {Delay}s: {Error}", agent.Name, delay / 1000, ex.Message);
                 await Task.Delay(delay, ct);
             }
         }
         return await agent.AnalyzeAsync(context, ct);
+    }
+
+    private static bool IsRateLimit(Exception ex)
+    {
+        var msg = ex.Message + ex.InnerException?.Message + ex.InnerException?.InnerException?.Message;
+        return msg.Contains("429") || msg.Contains("rate") || msg.Contains("Rate") || msg.Contains("too many") || msg.Contains("Too Many");
     }
 }

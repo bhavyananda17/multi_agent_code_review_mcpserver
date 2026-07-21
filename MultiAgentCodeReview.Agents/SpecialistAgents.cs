@@ -1,6 +1,7 @@
 using AutoGen;
 using AutoGen.Core;
 using MultiAgentCodeReview.Core.Models;
+using System.Diagnostics;
 using System.Text.Json;
 
 namespace MultiAgentCodeReview.Agents;
@@ -23,7 +24,11 @@ public abstract class BaseSpecialistAgent : MultiAgentCodeReview.Core.Interfaces
     {
         var userPrompt = BuildPrompt(context);
         var messages = new IMessage[] { new TextMessage(Role.User, userPrompt) };
+        var sw = Stopwatch.StartNew();
+        Console.Error.WriteLine($"[{_agentName}] Sending request ({userPrompt.Length} chars)...");
         var response = await _agent.GenerateReplyAsync(messages, cancellationToken: cancellationToken);
+        sw.Stop();
+        Console.Error.WriteLine($"[{_agentName}] Got response in {sw.Elapsed.TotalSeconds:F1}s");
         var content = response is TextMessage tm ? tm.Content : response.ToString();
         return ParseResponse(content ?? "");
     }
@@ -275,25 +280,6 @@ public class SecurityAgent : BaseSpecialistAgent
         sb.AppendLine(BuildDiffContent(context));
         sb.AppendLine("Focus on: SQL injection, XSS, auth bypass, sensitive data exposure, crypto weaknesses, input validation, dependency vulnerabilities.");
         sb.AppendLine("Return JSON with findings array and summary.");
-        return sb.ToString();
-    }
-}
-
-public class LogicAgent : BaseSpecialistAgent
-{
-    public override List<string> TriggerCategories { get; } = ["Controllers/", "Services/", "Models/", "Logic/"];
-
-    public LogicAgent(IAgent agent) : base(agent, "LogicAgent") { }
-
-    protected override string BuildPrompt(PipelineContext context)
-    {
-        var sb = new System.Text.StringBuilder();
-        sb.AppendLine("Analyze the following code changes for logic correctness, code quality, and maintainability:");
-        sb.AppendLine();
-        sb.AppendLine(BuildContextSummary(context));
-        sb.AppendLine(BuildDiffContent(context));
-        sb.AppendLine("Check: Logic errors, edge cases, null handling, complexity (>10), code smells, SOLID violations, testability, naming, error handling.");
-        sb.AppendLine("Return JSON with findings array and summary. Include metrics (complexity, LOC, nesting).");
         return sb.ToString();
     }
 }
