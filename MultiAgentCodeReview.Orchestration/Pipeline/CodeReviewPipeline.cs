@@ -83,6 +83,8 @@ public class CodeReviewPipeline
 
         if (routeTo.Contains("SecurityAgent"))
             agents.Add(_agentFactory.CreateSecurityAgent());
+        if (routeTo.Contains("LogicAgent"))
+            agents.Add(_agentFactory.CreateLogicAgent());
         if (routeTo.Contains("PerformanceAgent"))
             agents.Add(_agentFactory.CreatePerformanceAgent());
         if (routeTo.Contains("ModernizationAgent"))
@@ -93,6 +95,7 @@ public class CodeReviewPipeline
             agents.AddRange(new ISpecialistAgent[]
             {
                 _agentFactory.CreateSecurityAgent(),
+                _agentFactory.CreateLogicAgent(),
                 _agentFactory.CreatePerformanceAgent(),
                 _agentFactory.CreateModernizationAgent()
             });
