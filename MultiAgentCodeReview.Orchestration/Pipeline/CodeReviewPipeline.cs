@@ -85,8 +85,8 @@ public class CodeReviewPipeline
             agents.Add(_agentFactory.CreateSecurityAgent());
         if (routeTo.Contains("PerformanceAgent"))
             agents.Add(_agentFactory.CreatePerformanceAgent());
-        if (routeTo.Contains("ModernizationAgent"))
-            agents.Add(_agentFactory.CreateModernizationAgent());
+        if (routeTo.Contains("LogicAgent"))
+            agents.Add(_agentFactory.CreateLogicAgent());
 
         if (agents.Count == 0)
         {
@@ -94,7 +94,7 @@ public class CodeReviewPipeline
             {
                 _agentFactory.CreateSecurityAgent(),
                 _agentFactory.CreatePerformanceAgent(),
-                _agentFactory.CreateModernizationAgent()
+                _agentFactory.CreateLogicAgent()
             });
         }
 

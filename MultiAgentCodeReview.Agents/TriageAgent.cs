@@ -101,7 +101,7 @@ public class TriageAgent : MultiAgentCodeReview.Core.Interfaces.ITriageAgent
         {
             "SECURITY" => "SecurityAgent",
             "PERFORMANCE" => "PerformanceAgent",
-            "MODERNIZATION" => "ModernizationAgent",
+            "LOGIC" => "LogicAgent",
             _ when agentName.EndsWith("Agent") => agentName,
             _ => null
         };
@@ -123,8 +123,8 @@ public class TriageAgent : MultiAgentCodeReview.Core.Interfaces.ITriageAgent
     }
 
     private static TriageResult CreateDefault() => new(
-        new List<string> { "SECURITY", "PERFORMANCE", "MODERNIZATION" },
-        new List<string> { "SecurityAgent", "PerformanceAgent", "ModernizationAgent" },
+        new List<string> { "SECURITY", "PERFORMANCE", "LOGIC" },
+        new List<string> { "SecurityAgent", "PerformanceAgent", "LogicAgent" },
         "MEDIUM",
         "Default fallback — routing to all specialist agents"
     );

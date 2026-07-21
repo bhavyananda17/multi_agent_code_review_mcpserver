@@ -40,11 +40,11 @@ public class AgentFactory
         return new PerformanceAgent(agent);
     }
 
-    public MultiAgentCodeReview.Core.Interfaces.ISpecialistAgent CreateModernizationAgent()
+    public MultiAgentCodeReview.Core.Interfaces.ISpecialistAgent CreateLogicAgent()
     {
-        var modelConfig = GetModelConfig("modernization");
-        var agent = CreateOpenAIAgent(modelConfig, "ModernizationAgent", AgentPrompts.ModernizationSystemPrompt);
-        return new ModernizationAgent(agent);
+        var modelConfig = GetModelConfig("logic");
+        var agent = CreateOpenAIAgent(modelConfig, "LogicAgent", AgentPrompts.LogicSystemPrompt);
+        return new LogicAgent(agent);
     }
 
     public MultiAgentCodeReview.Core.Interfaces.IDocumentationAgent CreateDocumentationAgent()

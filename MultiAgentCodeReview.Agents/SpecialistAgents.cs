@@ -303,59 +303,21 @@ public class PerformanceAgent : BaseSpecialistAgent
     }
 }
 
-public class ModernizationAgent : BaseSpecialistAgent
+public class LogicAgent : BaseSpecialistAgent
 {
-    public override List<string> TriggerCategories { get; } = ["Legacy/", "Old/", "Deprecated/"];
+    public override List<string> TriggerCategories { get; } = ["Controllers/", "Services/", "Models/", "Logic/"];
 
-    public ModernizationAgent(IAgent agent) : base(agent, "ModernizationAgent") { }
+    public LogicAgent(IAgent agent) : base(agent, "LogicAgent") { }
 
     protected override string BuildPrompt(PipelineContext context)
     {
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine("Analyze the following code changes and project structure for technical debt and modernization opportunities:");
+        sb.AppendLine("Analyze the following code changes for logic correctness, code quality, and maintainability:");
         sb.AppendLine();
         sb.AppendLine(BuildContextSummary(context));
-        sb.AppendLine();
-
-        // Add project structure context for broader modernization suggestions
-        sb.AppendLine("=== PROJECT STRUCTURE ===");
-        var allFiles = context.ChangedFiles.Select(f => f.Path).ToList();
-        var csprojFiles = allFiles.Where(f => f.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase)).ToList();
-        var csFiles = allFiles.Where(f => f.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)).ToList();
-        var configFiles = allFiles.Where(f => f.EndsWith(".json", StringComparison.OrdinalIgnoreCase) ||
-                                               f.EndsWith(".xml", StringComparison.OrdinalIgnoreCase) ||
-                                               f.EndsWith(".config", StringComparison.OrdinalIgnoreCase)).ToList();
-
-        sb.AppendLine($"Total changed files: {allFiles.Count}");
-        if (csprojFiles.Any())
-        {
-            sb.AppendLine($"Project files (.csproj): {string.Join(", ", csprojFiles)}");
-            sb.AppendLine("Look for: outdated target frameworks, deprecated package references, missing nullable enable");
-        }
-        if (configFiles.Any())
-        {
-            sb.AppendLine($"Config files: {string.Join(", ", configFiles)}");
-            sb.AppendLine("Look for: legacy configuration patterns, missing modern config providers");
-        }
-        if (csFiles.Any())
-        {
-            sb.AppendLine($"C# files: {csFiles.Count} files");
-            sb.AppendLine("Look for: missing modern C# features, legacy patterns, outdated APIs");
-        }
-
-        sb.AppendLine();
-        sb.AppendLine("=== CODE CHANGES ===");
-        sb.AppendLine(BuildDiffContent(context, maxChars: 6000));
-
-        sb.AppendLine();
-        sb.AppendLine("=== MODERNIZATION ANALYSIS INSTRUCTIONS ===");
-        sb.AppendLine("1. Analyze the diff for immediate legacy patterns in changed code");
-        sb.AppendLine("2. Based on project structure, suggest PROJECT-WIDE modernization opportunities");
-        sb.AppendLine("3. For each finding, explain: what is legacy, what is modern, effort to migrate");
-        sb.AppendLine("4. End your summary with a 'Modernization Roadmap' listing prioritized migration steps");
-        sb.AppendLine("5. Consider: target framework version, package freshness, C# language version, architecture patterns");
-        sb.AppendLine();
-        sb.AppendLine("Return JSON with findings array and summary. Include modernizationContext for each finding.");
+        sb.AppendLine(BuildDiffContent(context));
+        sb.AppendLine("Focus on: Logic errors, null reference risks, unhandled exceptions, edge cases, complexity >10, code smells, SOLID violations, poor naming, swallowed exceptions, missing validation, testability, duplicated code.");
+        sb.AppendLine("Quantify: 'cyclomatic complexity of 15 (target <10)', 'method spans 120 lines (max 50)'. Return JSON with findings array and summary.");
         return sb.ToString();
     }
 }

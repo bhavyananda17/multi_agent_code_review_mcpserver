@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Text;
+using System.Text.Json;
 using ModelContextProtocol.Server;
 using MultiAgentCodeReview.Agents;
 using MultiAgentCodeReview.Core.Models;
@@ -29,6 +30,24 @@ public class CodeReviewMcpTools
         [Description("The commit to review (HEAD, sha, branch name)")] string commit_hash,
         [Description("Base to diff against (defaults to commit_hash~1)")] string base_commit = "")
     {
+        var reportDir = Path.Combine(repo_path, ".codereview");
+        var reportPath = Path.Combine(reportDir, "last_report.md");
+        var metaPath = Path.Combine(reportDir, "last_report.meta.json");
+
+        if (File.Exists(reportPath) && File.Exists(metaPath))
+        {
+            try
+            {
+                var metaJson = await File.ReadAllTextAsync(metaPath);
+                var meta = JsonSerializer.Deserialize<ReportMeta>(metaJson);
+                if (meta?.CommitHash == commit_hash)
+                {
+                    return await File.ReadAllTextAsync(reportPath);
+                }
+            }
+            catch { /* fall through to re-run pipeline */ }
+        }
+
         var output = await _pipeline.RunReviewAsync(repo_path, commit_hash, string.IsNullOrWhiteSpace(base_commit) ? null : base_commit);
 
         _pipelineCache[repo_path] = output;
@@ -37,9 +56,9 @@ public class CodeReviewMcpTools
 
         _reportCache[repo_path] = report;
 
-        var reportDir = Path.Combine(repo_path, ".codereview");
         Directory.CreateDirectory(reportDir);
-        await File.WriteAllTextAsync(Path.Combine(reportDir, "last_report.md"), report);
+        await File.WriteAllTextAsync(reportPath, report);
+        await File.WriteAllTextAsync(metaPath, JsonSerializer.Serialize(new ReportMeta { CommitHash = commit_hash }));
 
         return report;
     }
@@ -65,25 +84,6 @@ public class CodeReviewMcpTools
         var answer = await onboardingAgent.AnswerAsync(question, output.Context, output.Result);
 
         return answer;
-    }
-
-    [McpServerTool]
-    [Description("Returns the most recent review report for a repo path without re-running the pipeline. Returns a message if no review has been run yet for this path.")]
-    public async Task<string> GetLastReport(
-        [Description("Absolute path to the git repo on disk")] string repo_path)
-    {
-        if (_reportCache.TryGetValue(repo_path, out var cached))
-            return cached;
-
-        var filePath = Path.Combine(repo_path, ".codereview", "last_report.md");
-        if (File.Exists(filePath))
-        {
-            var report = await File.ReadAllTextAsync(filePath);
-            _reportCache[repo_path] = report;
-            return report;
-        }
-
-        return "No report found for this repo path.";
     }
 
     [McpServerTool]
@@ -423,5 +423,10 @@ public class CodeReviewMcpTools
     internal string? GetCachedReport(string repo_path)
     {
         return _reportCache.TryGetValue(repo_path, out var report) ? report : null;
+    }
+
+    private sealed class ReportMeta
+    {
+        public string CommitHash { get; set; } = string.Empty;
     }
 }
