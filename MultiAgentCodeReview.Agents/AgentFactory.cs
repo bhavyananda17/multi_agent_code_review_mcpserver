@@ -5,6 +5,7 @@ using AutoGen.OpenAI.Extension;
 using Microsoft.Extensions.Options;
 using MultiAgentCodeReview.Core.Configuration;
 using MultiAgentCodeReview.Core.Prompts;
+using MultiAgentCodeReview.Core.RateLimiting;
 using OpenAI;
 using OpenAI.Chat;
 
@@ -13,10 +14,12 @@ namespace MultiAgentCodeReview.Agents;
 public class AgentFactory
 {
     private readonly PipelineConfig _config;
+    private readonly RateLimitedHttpClient _rateLimiter;
 
-    public AgentFactory(IOptions<PipelineConfig> config)
+    public AgentFactory(IOptions<PipelineConfig> config, RateLimitedHttpClient rateLimiter)
     {
         _config = config.Value;
+        _rateLimiter = rateLimiter;
     }
 
     public MultiAgentCodeReview.Core.Interfaces.ITriageAgent CreateTriageAgent()
@@ -67,13 +70,16 @@ public class AgentFactory
             ?? Environment.GetEnvironmentVariable("GROQ_API_KEY")
             ?? throw new InvalidOperationException("No API key configured. Set MULTIAGENT_API_KEY or GROQ_API_KEY.");
 
+        var httpClient = _rateLimiter.CreateClient(modelConfig);
+
         var options = new OpenAIClientOptions
         {
             Endpoint = new Uri(_config.BaseUrl),
             NetworkTimeout = TimeSpan.FromSeconds(90)
         };
 
-        var chatClient = new ChatClient(modelConfig.ModelId, apiKey, options);
+        var openAIClient = new OpenAIClient(apiKey, options, httpClient);
+        var chatClient = openAIClient.GetChatClient(modelConfig.ModelId);
 
         return new OpenAIChatAgent(
             chatClient: chatClient,

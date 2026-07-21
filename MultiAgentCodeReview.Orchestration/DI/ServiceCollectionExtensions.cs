@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
 using MultiAgentCodeReview.Core.Configuration;
 using MultiAgentCodeReview.Core.Interfaces;
+using MultiAgentCodeReview.Core.RateLimiting;
 using MultiAgentCodeReview.Agents;
 using MultiAgentCodeReview.Orchestration.Pipeline;
 using MultiAgentCodeReview.Orchestration.Tools;
@@ -33,6 +34,9 @@ public static class ServiceCollectionExtensions
             configure?.Invoke(options);
             LoadConfigFromEnv(config, options);
         });
+
+        services.AddSingleton<TokenBudget>(sp => new TokenBudget(30, 6000, sp.GetService<ILogger<TokenBudget>>()));
+        services.AddSingleton<RateLimitedHttpClient>();
 
         services.AddTransient<IGitOperationsTool, GitOperationsTool>();
         services.AddSingleton<ICodeAnalysisTool, CodeAnalysisTool>();
