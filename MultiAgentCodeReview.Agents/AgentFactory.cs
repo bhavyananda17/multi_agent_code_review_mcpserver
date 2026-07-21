@@ -70,16 +70,13 @@ public class AgentFactory
             ?? Environment.GetEnvironmentVariable("GROQ_API_KEY")
             ?? throw new InvalidOperationException("No API key configured. Set MULTIAGENT_API_KEY or GROQ_API_KEY.");
 
-        var httpClient = _rateLimiter.CreateClient(modelConfig);
-
         var options = new OpenAIClientOptions
         {
             Endpoint = new Uri(_config.BaseUrl),
             NetworkTimeout = TimeSpan.FromSeconds(90)
         };
 
-        var openAIClient = new OpenAIClient(apiKey, options, httpClient);
-        var chatClient = openAIClient.GetChatClient(modelConfig.ModelId);
+        var chatClient = new ChatClient(modelConfig.ModelId, apiKey, options);
 
         return new OpenAIChatAgent(
             chatClient: chatClient,

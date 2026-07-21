@@ -22,7 +22,7 @@ public abstract class BaseSpecialistAgent : MultiAgentCodeReview.Core.Interfaces
 
     public async Task<AgentResult> AnalyzeAsync(PipelineContext context, CancellationToken cancellationToken = default)
     {
-        var userPrompt = BuildPrompt(context);
+        var (userPrompt, validLines) = BuildPrompt(context);
         var messages = new IMessage[] { new TextMessage(Role.User, userPrompt) };
         var sw = Stopwatch.StartNew();
         Console.Error.WriteLine($"[{_agentName}] Sending request ({userPrompt.Length} chars)...");
@@ -30,12 +30,12 @@ public abstract class BaseSpecialistAgent : MultiAgentCodeReview.Core.Interfaces
         sw.Stop();
         Console.Error.WriteLine($"[{_agentName}] Got response in {sw.Elapsed.TotalSeconds:F1}s");
         var content = response is TextMessage tm ? tm.Content : response.ToString();
-        return ParseResponse(content ?? "");
+        return ParseResponse(content ?? "", validLines);
     }
 
-    protected abstract string BuildPrompt(PipelineContext context);
+    protected abstract (string prompt, Dictionary<string, HashSet<int>> validLines) BuildPrompt(PipelineContext context);
 
-    protected virtual AgentResult ParseResponse(string response)
+    protected virtual AgentResult ParseResponse(string response, Dictionary<string, HashSet<int>> validLines)
     {
         if (string.IsNullOrWhiteSpace(response))
             return new AgentResult(new List<Finding>(), "No response from agent");
@@ -49,7 +49,7 @@ public abstract class BaseSpecialistAgent : MultiAgentCodeReview.Core.Interfaces
             var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
             var result = JsonSerializer.Deserialize<AgentResult>(cleaned, options);
             if (result != null && result.Findings.Count > 0)
-                return result;
+                return ClampInvalidLines(result, validLines);
         }
         catch { }
 
@@ -62,14 +62,14 @@ public abstract class BaseSpecialistAgent : MultiAgentCodeReview.Core.Interfaces
                 var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
                 var result = JsonSerializer.Deserialize<AgentResult>(extracted, options);
                 if (result != null && result.Findings.Count > 0)
-                    return result;
+                    return ClampInvalidLines(result, validLines);
             }
         }
         catch { }
 
         // Try 3: Fallback to text parsing
         var findings = ExtractFindingsFromText(response);
-        return new AgentResult(findings, response);
+        return ClampInvalidLines(new AgentResult(findings, response), validLines);
     }
 
     private static string StripThinkingTags(string response)
@@ -189,9 +189,9 @@ public abstract class BaseSpecialistAgent : MultiAgentCodeReview.Core.Interfaces
         return sb.ToString();
     }
 
-    protected static string BuildDiffContent(PipelineContext context, int maxChars = 4000)
+    protected static (string content, Dictionary<string, HashSet<int>> validLines) BuildDiffContent(PipelineContext context, int maxChars = 4000)
     {
-        if (context.Diff == null) return "";
+        if (context.Diff == null) return ("", new Dictionary<string, HashSet<int>>());
         var sb = new System.Text.StringBuilder();
         sb.AppendLine("Code Changes:");
         int totalChars = 0;
@@ -207,14 +207,62 @@ public abstract class BaseSpecialistAgent : MultiAgentCodeReview.Core.Interfaces
                     if (remaining > 100)
                         sb.AppendLine(numbered.Substring(0, remaining) + "\n... [truncated]");
                     sb.AppendLine($"... [{context.Diff.Files.Count - context.Diff.Files.IndexOf(fileDiff)} more files truncated]");
-                    return sb.ToString();
+                    return (sb.ToString(), ExtractValidLineNumbers(sb.ToString()));
                 }
                 sb.AppendLine(numbered);
                 totalChars += numbered.Length;
             }
             sb.AppendLine();
         }
-        return sb.ToString();
+        var diffContent = sb.ToString();
+        return (diffContent, ExtractValidLineNumbers(diffContent));
+    }
+
+    private static Dictionary<string, HashSet<int>> ExtractValidLineNumbers(string diffContent)
+    {
+        var result = new Dictionary<string, HashSet<int>>();
+        string currentFile = "";
+
+        foreach (var line in diffContent.Split('\n'))
+        {
+            var trimmed = line.TrimEnd('\r');
+
+            if (trimmed.StartsWith("--- ") && trimmed.EndsWith(" ---"))
+            {
+                currentFile = trimmed.Substring(4, trimmed.Length - 8);
+                if (!result.ContainsKey(currentFile))
+                    result[currentFile] = new HashSet<int>();
+            }
+
+            var match = System.Text.RegularExpressions.Regex.Match(trimmed, @"\[Line (\d+)\]");
+            if (match.Success && !string.IsNullOrEmpty(currentFile))
+            {
+                if (int.TryParse(match.Groups[1].Value, out var lineNum))
+                {
+                    result[currentFile].Add(lineNum);
+                }
+            }
+        }
+
+        return result;
+    }
+
+    private static AgentResult ClampInvalidLines(AgentResult result, Dictionary<string, HashSet<int>> validLines)
+    {
+        if (validLines.Count == 0)
+            return result;
+
+        var clamped = result.Findings.Select(f =>
+        {
+            if (!string.IsNullOrEmpty(f.File) && f.Line > 0)
+            {
+                if (validLines.TryGetValue(f.File, out var lines) && !lines.Contains(f.Line))
+                    return f with { Line = 0 };
+            }
+            return f;
+        }).ToList();
+
+        return new AgentResult(clamped, result.Summary);
     }
 
     private static string InjectLineNumbers(Hunk hunk)
@@ -271,16 +319,17 @@ public class SecurityAgent : BaseSpecialistAgent
 
     public SecurityAgent(IAgent agent) : base(agent, "SecurityAgent") { }
 
-    protected override string BuildPrompt(PipelineContext context)
+    protected override (string prompt, Dictionary<string, HashSet<int>> validLines) BuildPrompt(PipelineContext context)
     {
         var sb = new System.Text.StringBuilder();
         sb.AppendLine("Analyze the following code changes for security vulnerabilities:");
         sb.AppendLine();
         sb.AppendLine(BuildContextSummary(context));
-        sb.AppendLine(BuildDiffContent(context));
+        var (diffContent, validLines) = BuildDiffContent(context);
+        sb.AppendLine(diffContent);
         sb.AppendLine("Focus on: SQL injection, XSS, auth bypass, sensitive data exposure, crypto weaknesses, input validation, dependency vulnerabilities.");
         sb.AppendLine("Return JSON with findings array and summary.");
-        return sb.ToString();
+        return (sb.ToString(), validLines);
     }
 }
 
@@ -290,16 +339,17 @@ public class PerformanceAgent : BaseSpecialistAgent
 
     public PerformanceAgent(IAgent agent) : base(agent, "PerformanceAgent") { }
 
-    protected override string BuildPrompt(PipelineContext context)
+    protected override (string prompt, Dictionary<string, HashSet<int>> validLines) BuildPrompt(PipelineContext context)
     {
         var sb = new System.Text.StringBuilder();
         sb.AppendLine("Analyze the following code changes for performance bottlenecks:");
         sb.AppendLine();
         sb.AppendLine(BuildContextSummary(context));
-        sb.AppendLine(BuildDiffContent(context));
+        var (diffContent, validLines) = BuildDiffContent(context);
+        sb.AppendLine(diffContent);
         sb.AppendLine("Focus: N+1 queries, missing indexes, SELECT *, queries in loops, no pagination, blocking calls (.Result/.Wait()), async void, memory leaks, large allocations, string concat in loops, O(n2) algorithms, repeated LINQ, missing caching.");
         sb.AppendLine("Quantify impact: 'Adds 200ms', 'N+1: 1+N queries instead of 1'. Return JSON with findings, impact estimates, optimized code examples.");
-        return sb.ToString();
+        return (sb.ToString(), validLines);
     }
 }
 
@@ -309,15 +359,16 @@ public class LogicAgent : BaseSpecialistAgent
 
     public LogicAgent(IAgent agent) : base(agent, "LogicAgent") { }
 
-    protected override string BuildPrompt(PipelineContext context)
+    protected override (string prompt, Dictionary<string, HashSet<int>> validLines) BuildPrompt(PipelineContext context)
     {
         var sb = new System.Text.StringBuilder();
         sb.AppendLine("Analyze the following code changes for logic correctness, code quality, and maintainability:");
         sb.AppendLine();
         sb.AppendLine(BuildContextSummary(context));
-        sb.AppendLine(BuildDiffContent(context));
+        var (diffContent, validLines) = BuildDiffContent(context);
+        sb.AppendLine(diffContent);
         sb.AppendLine("Focus on: Logic errors, null reference risks, unhandled exceptions, edge cases, complexity >10, code smells, SOLID violations, poor naming, swallowed exceptions, missing validation, testability, duplicated code.");
         sb.AppendLine("Quantify: 'cyclomatic complexity of 15 (target <10)', 'method spans 120 lines (max 50)'. Return JSON with findings array and summary.");
-        return sb.ToString();
+        return (sb.ToString(), validLines);
     }
 }

@@ -50,6 +50,13 @@ public class DocumentationAgent : MultiAgentCodeReview.Core.Interfaces.IDocument
             sb.AppendLine($"  - {file.Path} (+{file.Additions} -{file.Deletions})");
         }
         sb.AppendLine();
+        sb.AppendLine("Changed file contents:");
+        foreach (var content in AgentHelpers.ReadChangedFileContents(context))
+        {
+            sb.AppendLine(content);
+        }
+        AgentHelpers.AppendDependencyGraph(sb, context);
+        sb.AppendLine();
         sb.AppendLine("Code Review Summary:");
         sb.AppendLine(synthesisResult.Summary);
         if (synthesisResult.Findings?.Count > 0)
@@ -171,6 +178,13 @@ public class OnboardingAgent : MultiAgentCodeReview.Core.Interfaces.IOnboardingA
         sb.AppendLine();
         sb.AppendLine("Recent Code Review Summary:");
         sb.AppendLine(synthesisResult.Summary);
+        sb.AppendLine();
+        sb.AppendLine("Changed file contents:");
+        foreach (var content in AgentHelpers.ReadChangedFileContents(context))
+        {
+            sb.AppendLine(content);
+        }
+        AgentHelpers.AppendDependencyGraph(sb, context);
         sb.AppendLine();
         sb.AppendLine("Answer the question using the codebase and review context. Be friendly, educational, and use examples from the actual code.");
 

@@ -183,9 +183,18 @@ public class CodeReviewPipeline
             dedupedFindings.Add(merged);
         }
 
+        var lowConfidenceFindings = dedupedFindings
+            .Where(f => f.Confidence < 0.6)
+            .ToList();
+
+        unlocatedFindings.AddRange(lowConfidenceFindings);
+
+        dedupedFindings.RemoveAll(f => f.Confidence < 0.6);
+
         var sorted = dedupedFindings
             .Concat(unlocatedFindings)
             .OrderByDescending(f => f.Severity)
+            .ThenByDescending(f => f.Confidence)
             .ThenBy(f => f.File)
             .ThenBy(f => f.Line)
             .ToList();
@@ -200,8 +209,10 @@ public class CodeReviewPipeline
         summary.Append($"Reviewed {context.ChangedFiles.Count} files. ");
         summary.Append($"Found {sorted.Count} findings across {fileCount} files: ");
         summary.Append($"{critCount} critical, {highCount} high, {medCount} medium, {lowCount} low.");
-        if (unlocatedFindings.Count > 0)
-            summary.Append($" {unlocatedFindings.Count} finding(s) could not be matched to a specific line.");
+        if (lowConfidenceFindings.Count > 0)
+            summary.Append($" {lowConfidenceFindings.Count} finding(s) excluded for low confidence (< 0.6).");
+        if (unlocatedFindings.Count > lowConfidenceFindings.Count)
+            summary.Append($" {unlocatedFindings.Count - lowConfidenceFindings.Count} finding(s) could not be matched to a specific line.");
         if (crossAgentBoosts > 0)
             summary.Append($" {crossAgentBoosts} finding(s) boosted to Critical via cross-agent agreement.");
 
