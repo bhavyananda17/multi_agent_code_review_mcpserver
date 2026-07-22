@@ -15,13 +15,15 @@ public class GitOperationsTool : IGitOperationsTool
 
     public async Task<GitDiff> GetDiffAsync(string fromRef, string toRef = "HEAD")
     {
-        var output = await RunGitCommandAsync($"diff {fromRef} {toRef} --no-color");
+        var resolvedFrom = await ResolveMergeBaseAsync(fromRef, toRef);
+        var output = await RunGitCommandAsync($"diff {resolvedFrom} {toRef} --no-color");
         return ParseDiffOutput(output);
     }
 
     public async Task<List<string>> GetChangedFilesAsync(string fromRef = "HEAD~1", string toRef = "HEAD")
     {
-        var output = await RunGitCommandAsync($"diff --name-only {fromRef} {toRef}");
+        var resolvedFrom = await ResolveMergeBaseAsync(fromRef, toRef);
+        var output = await RunGitCommandAsync($"diff --name-only {resolvedFrom} {toRef}");
         return output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
     }
 
@@ -186,6 +188,21 @@ public class GitOperationsTool : IGitOperationsTool
 
         var summary = $"{fileDiffs.Count} files changed";
         return new GitDiff(summary, fileDiffs);
+    }
+
+    private async Task<string> ResolveMergeBaseAsync(string fromRef, string toRef)
+    {
+        try
+        {
+            var output = await RunGitCommandAsync($"merge-base {fromRef} {toRef}");
+            if (!string.IsNullOrWhiteSpace(output))
+                return output.Trim();
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[GitOperationsTool] merge-base failed for {fromRef}..{toRef}, falling back to fromRef: {ex.Message}");
+        }
+        return fromRef;
     }
 
     private async Task<string> RunGitCommandAsync(string args)
