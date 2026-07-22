@@ -169,6 +169,10 @@ static async Task RunReviewAsync(CodeReviewPipeline pipeline, string[] args)
         foreach (var finding in output.Result.Findings)
         {
             Console.WriteLine($"\n[{finding.Severity}] {finding.Category} in {finding.File}:{finding.Line}");
+            if (!string.IsNullOrEmpty(finding.QuickFix))
+            {
+                Console.WriteLine($"  Quick fix: {finding.QuickFix}");
+            }
             Console.WriteLine($"  {finding.Description}");
             Console.WriteLine($"  Fix: {finding.Recommendation}");
             if (!string.IsNullOrEmpty(finding.CodeSnippet))

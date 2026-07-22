@@ -52,6 +52,7 @@ public record Finding(
     string CodeSnippet,
     FixExample FixExample,
     double Confidence,
+    string? QuickFix = null,
     string? Summary = null,
     Dictionary<string, object>? Metrics = null,
     Dictionary<string, object>? Impact = null,

@@ -30,7 +30,8 @@ public abstract class BaseSpecialistAgent : MultiAgentCodeReview.Core.Interfaces
         sw.Stop();
         Console.Error.WriteLine($"[{_agentName}] Got response in {sw.Elapsed.TotalSeconds:F1}s");
         var content = response is TextMessage tm ? tm.Content : response.ToString();
-        return ParseResponse(content ?? "", validLines);
+        var result = ParseResponse(content ?? "", validLines);
+        return FillMissingQuickFixes(result);
     }
 
     protected abstract (string prompt, Dictionary<string, HashSet<int>> validLines) BuildPrompt(PipelineContext context);
@@ -263,6 +264,23 @@ public abstract class BaseSpecialistAgent : MultiAgentCodeReview.Core.Interfaces
         }).ToList();
 
         return new AgentResult(clamped, result.Summary);
+    }
+
+    private static AgentResult FillMissingQuickFixes(AgentResult result)
+    {
+        var filled = result.Findings.Select(f =>
+        {
+            if (!string.IsNullOrEmpty(f.QuickFix))
+                return f;
+
+            var fallback = f.Recommendation?.Trim().TrimEnd('.');
+            if (!string.IsNullOrEmpty(fallback))
+                return f with { QuickFix = fallback + "." };
+
+            return f;
+        }).ToList();
+
+        return new AgentResult(filled, result.Summary);
     }
 
     private static string InjectLineNumbers(Hunk hunk)

@@ -271,6 +271,10 @@ public class CodeReviewMcpTools
 
         sb.AppendLine($"### [{finding.Severity}] {finding.Category}");
         sb.AppendLine($"- **File:** {location}");
+        if (!string.IsNullOrEmpty(finding.QuickFix))
+        {
+            sb.AppendLine($"- **Quick fix:** `{finding.QuickFix}`");
+        }
         sb.AppendLine($"- **Confidence:** {confidenceEmoji} {finding.Confidence:P0}");
         sb.AppendLine();
         sb.AppendLine(finding.Description);

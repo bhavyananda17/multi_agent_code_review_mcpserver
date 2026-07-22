@@ -46,11 +46,12 @@ public static class AgentPrompts
 
         RULES:
         - Every finding MUST have "file" (exact path from diff), "line" (>0, from [Line N] markers in the diff), "description", "recommendation" (one-liner fix), "codeSnippet" (the exact vulnerable line), "confidence".
+        - CRITICAL: Every finding MUST include a "quickFix" field. If you omit "quickFix", the finding is DISCARDED and never shown to the developer. The quickFix must be ONE imperative sentence, no explanation, no hedging — e.g. "Replace string concat with parameterized query on line 42." Think of it as a git-commit-title-level instruction.
         - Use <thinking> tags to identify the line, then output JSON only.
         - Never downplay security issues.
 
         OUTPUT (JSON only, no markdown):
-        {"findings":[{"severity":"HIGH","category":"SQL_INJECTION","file":"Services/UserService.cs","line":42,"description":"SQL injection via string concatenation.","recommendation":"Use parameterized queries instead of string concatenation.","codeSnippet":"var cmd = new SqlCommand(\"SELECT * FROM Users WHERE Id = \" + userId, conn);","confidence":1.0}],"summary":"Found 1 critical SQL injection"}
+        {"findings":[{"severity":"HIGH","category":"SQL_INJECTION","file":"Services/UserService.cs","line":42,"description":"SQL injection via string concatenation.","recommendation":"Use parameterized queries instead of string concatenation.","codeSnippet":"var cmd = new SqlCommand(\"SELECT * FROM Users WHERE Id = \" + userId, conn);","confidence":1.0,"quickFix":"Replace string concat with parameterized query on line 42."}],"summary":"Found 1 critical SQL injection"}
         """;
 
     public const string PerformanceSystemPrompt = """
@@ -62,11 +63,12 @@ public static class AgentPrompts
 
         RULES:
         - Every finding MUST have "file" (exact path from diff), "line" (>0, from [Line N] markers), "description", "recommendation" (one-liner fix), "codeSnippet" (exact problematic line), "confidence".
+        - CRITICAL: Every finding MUST include a "quickFix" field. If you omit "quickFix", the finding is DISCARDED and never shown to the developer. The quickFix must be ONE imperative sentence, no explanation, no hedging — e.g. "Move GetProduct call outside the loop and use a batch lookup." Think of it as a git-commit-title-level instruction.
         - Quantify impact: "Adds 200ms per request", "N+1: 1+N queries instead of 1".
         - Use <thinking> tags to identify the line, then output JSON only.
 
         OUTPUT (JSON only):
-        {"findings":[{"severity":"HIGH","category":"N_PLUS_ONE_QUERY","file":"Services/OrderService.cs","line":99,"description":"N+1 query: calls GetProduct inside a loop for each order item.","recommendation":"Batch the product lookups into a single query or use a dictionary cache.","codeSnippet":"var product = _productService.GetProduct(item.ProductId);","confidence":0.95}],"summary":"Found 1 N+1 query issue"}
+        {"findings":[{"severity":"HIGH","category":"N_PLUS_ONE_QUERY","file":"Services/OrderService.cs","line":99,"description":"N+1 query: calls GetProduct inside a loop for each order item.","recommendation":"Batch the product lookups into a single query or use a dictionary cache.","codeSnippet":"var product = _productService.GetProduct(item.ProductId);","confidence":0.95,"quickFix":"Move GetProduct call outside the loop and use a batch lookup or dictionary cache."}],"summary":"Found 1 N+1 query issue"}
         """;
 
     public const string LogicSystemPrompt = """
@@ -78,11 +80,12 @@ public static class AgentPrompts
 
         RULES:
         - Every finding MUST have "file" (exact path from diff), "line" (>0, from [Line N] markers in the diff), "description", "recommendation" (one-liner fix), "codeSnippet" (the exact problematic line), "confidence".
+        - CRITICAL: Every finding MUST include a "quickFix" field. If you omit "quickFix", the finding is DISCARDED and never shown to the developer. The quickFix must be ONE imperative sentence, no explanation, no hedging — e.g. "Extract validation logic into a separate method on line 78." Think of it as a git-commit-title-level instruction.
         - Use <thinking> tags to identify the line, then output JSON only.
         - Quantify complexity: "cyclomatic complexity of 15 (target <10)", "method spans 120 lines (max 50)".
 
         OUTPUT (JSON only, no markdown):
-        {"findings":[{"severity":"HIGH","category":"COMPLEXITY","file":"Services/OrderService.cs","line":78,"description":"Method ProcessOrderAsync has cyclomatic complexity of 15 (target <10).","recommendation":"Extract validation, payment, and notification into separate methods.","codeSnippet":"public async void ProcessOrderAsync(int orderId) { ... }","confidence":0.9}],"summary":"Found 1 complexity issue"}
+        {"findings":[{"severity":"HIGH","category":"COMPLEXITY","file":"Services/OrderService.cs","line":78,"description":"Method ProcessOrderAsync has cyclomatic complexity of 15 (target <10).","recommendation":"Extract validation, payment, and notification into separate methods.","codeSnippet":"public async void ProcessOrderAsync(int orderId) { ... }","confidence":0.9,"quickFix":"Extract validation and payment logic into separate private methods on line 78."}],"summary":"Found 1 complexity issue"}
         """;
 
     public const string TechnicalDocsSystemPrompt = """
