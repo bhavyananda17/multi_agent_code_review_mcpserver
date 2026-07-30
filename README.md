@@ -6,60 +6,33 @@ A production-grade multi-agent code review system built with Microsoft AutoGen a
 
 ---
 
-## Architecture Mind Map
+## Architecture
 
 ```mermaid
 graph TB
-    subgraph "Input Layer"
-        CLI[CLI / MCP Client]
-    end
+    Client[CLI / MCP Client] -->|"review /ask /docs"| Server[MultiAgentCodeReview]
 
-    subgraph "MultiAgentCodeReview.Host"
-        CLI -->|"review /repo HEAD"| Host[Program.cs]
-        Host -->|"ask /repo HEAD question"| AskCmd[RunAskAsync]
-        Host -->|"docs /repo HEAD"| DocsCmd[RunDocsAsync]
-    end
+    Server --> Pipeline[CodeReviewPipeline]
+    Pipeline --> Filter[1. FilterStage]
+    Filter --> Triage[2. TriageAgent 8B]
+    Triage --> Specialists[3. Specialists 70B]
+    Specialists --> Dedup[4. C# Dedup]
+    Dedup --> Modern[5. ModernizationQuick 8B]
 
-    subgraph "MultiAgentCodeReview.Orchestration"
-        Host --> Pipeline[CodeReviewPipeline]
+    Modern --> Output[Markdown Report]
+    Output --> Client
 
-        Pipeline -->|"Stage 1"| Filter[FilterStage]
-        Filter -->|"Git diff + Roslyn analysis"| Filter
+    Server --> Onboard[OnboardingAgent 8B]
+    Server --> Doc[DocumentationAgent 8B]
 
-        Pipeline -->|"Stage 2: 8B model"| Triage[TriageAgent]
-        Triage -->|"selected_agents"| Pipeline
+    Client -->|"ask"| Onboard
+    Client -->|"docs"| Doc
 
-        Pipeline -->|"Stage 3: Parallel"| SA[SecurityAgent<br/>70B]
-        Pipeline -->|"Stage 3: Parallel"| PA[PerformanceAgent<br/>70B]
-        Pipeline -->|"Stage 3: Parallel"| LA[LogicAgent<br/>70B]
-
-        SA -->|"findings"| Dedup[SynthesizeFindings<br/>C# Dedup]
-        PA -->|"findings"| Dedup
-        LA -->|"findings"| Dedup
-
-        Dedup -->|"deduped findings"| Report[ReviewOutput]
-    end
-
-    subgraph "MultiAgentCodeReview.Agents"
-        SA
-        PA
-        LA
-        DocAgent[DocumentationAgent<br/>8B]
-        OnboardAgent[OnboardingAgent<br/>8B]
-    end
-
-    subgraph "External APIs"
-        SA -->|"HTTP"| Groq[Groq API<br/>Llama 3.3-70B]
-        PA -->|"HTTP"| Groq
-        LA -->|"HTTP"| Groq
-        Triage -->|"HTTP"| GroqT[Groq API<br/>Llama 3.1-8B]
-        DocAgent -->|"HTTP"| GroqT
-        OnboardAgent -->|"HTTP"| GroqT
-    end
-
-    Report -->|"markdown report"| CLI
-    AskCmd -->|"answer"| OnboardAgent
-    DocsCmd -->|"documentation"| DocAgent
+    Specialists --> Groq70[Groq Llama 3.3-70B]
+    Triage --> Groq8[Groq Llama 3.1-8B]
+    Modern --> Groq8
+    Onboard --> Groq8
+    Doc --> Groq8
 ```
 
 ---
@@ -99,6 +72,7 @@ MultiAgentCodeReview.Orchestration (references Core + Agents)
 | **Security** | SQLi, XSS, auth bypass, crypto, secrets | llama-3.3-70b-versatile | 2-3s |
 | **Performance** | N+1, blocking calls, memory, O(n²), caching | llama-3.3-70b-versatile | 2-3s |
 | **Logic** | Logic errors, SOLID violations, complexity, code smells | llama-3.3-70b-versatile | 2-3s |
+| **ModernizationQuick** | Quick-scan for outdated patterns, old packages, legacy APIs | llama-3.1-8b-instant | 2-3s |
 | **Documentation** | Generates README, API docs, Architecture | llama-3.1-8b-instant | 4-5s |
 | **Onboarding** | Answers developer questions from codebase context | llama-3.1-8b-instant | 3-4s |
 
@@ -108,15 +82,15 @@ MultiAgentCodeReview.Orchestration (references Core + Agents)
 
 ```mermaid
 graph LR
-    A["1. Filter"] -->|"source files only"| B["2. Triage (8B)"]
-    B -->|"selected_agents"| C["3. Specialists"]
-    C -->|"Task.WhenAll"| C
+    A["1. Filter"] --> B["2. Triage (8B)"]
+    B --> C["3. Specialists (70B)"]
     C --> D["4. C# Dedup"]
+    D --> E["5. ModernizationQuick (8B)"]
 
     subgraph "Stage 3 — Parallel"
-        C1[Security 70B]
-        C2[Performance 70B]
-        C3[Logic 70B]
+        C1[Security]
+        C2[Performance]
+        C3[Logic]
     end
 
     C --> C1
@@ -135,6 +109,7 @@ graph LR
 | **Triage** | 8B model classifies diff, routes to 1-3 specialists | `TriageAgent.cs` — outputs `{"selected_agents":[...]}` |
 | **Specialists** | 3 agents run in parallel via `Task.WhenAll` | Each agent works on the 70B model through Groq API |
 | **Dedup** | C# code merges findings, boosts cross-agent agreement | `CodeReviewPipeline.cs` — no LLM call needed |
+| **ModernizationQuick** | Sequential quick-scan for outdated patterns and legacy APIs | `ModernizationQuickAgent.cs` — 8B model, runs after dedup |
 
 ---
 
@@ -186,6 +161,7 @@ graph TB
 | `CreateSecurityAgent()` | Creates security specialist with 70B model | `ISpecialistAgent` |
 | `CreatePerformanceAgent()` | Creates performance specialist with 70B model | `ISpecialistAgent` |
 | `CreateLogicAgent()` | Creates logic specialist with 70B model | `ISpecialistAgent` |
+| `CreateModernizationQuickAgent()` | Creates quick-scan modernization agent with 8B model | `IAgent` |
 | `CreateDocumentationAgent()` | Creates documentation agent with 8B model | `IDocumentationAgent` |
 | `CreateOnboardingAgent()` | Creates onboarding agent with 8B model | `IOnboardingAgent` |
 
@@ -261,6 +237,8 @@ Specialists are instructed to use `<thinking>` tags before outputting JSON, ensu
 
 ## MCP Tools
 
+The MCP server exposes 4 tools over stdio transport. `review_repo` also runs a lightweight modernization quick-scan after the pipeline completes and appends the results as a `## Quick Modernization Notes` section to the report.
+
 ```mermaid
 graph TB
     subgraph "MCP Server (stdio)"
@@ -279,20 +257,23 @@ graph TB
     Tools --> T3
     Tools --> T4
 
-    T1 -->|"always runs"| Pipeline[CodeReviewPipeline]
-    T2 -->|"runs if no cache"| Pipeline
-    T3 -->|"never runs pipeline"| Cache[(Report Cache)]
-    T4 -->|"runs if no cache"| Pipeline
+    T1 --> Pipeline[CodeReviewPipeline]
+    T1 --> Modern[ModernizationQuickAgent]
+    Modern --> Report[Report + Modernization Notes]
 
-    Pipeline --> Agents[Specialist Agents]
-    Cache -->|"disk"| Disk[.codereview/last_report.md]
+    T2 -->|"uses cache or runs pipeline"| Pipeline
+    T3 --> Cache[(Report Cache)]
+    T4 -->|"uses cache or runs pipeline"| Pipeline
+
+    Pipeline --> Report
+    Cache --> Disk[.codereview/last_report.md]
 ```
 
 | Tool | Description | When to use |
 |------|-------------|-------------|
-| `review_repo` | Run full multi-agent code review | "Review this commit", "Check this PR" |
-| `ask_codebase` | Ask natural language questions | "Where is auth handled?", "What calls X?" |
-| `get_last_report` | Get cached review report | "Show me the previous review" |
+| `review_repo` | Run full multi-agent review + modernization quick-scan | "Review this commit", "Check this PR" |
+| `ask_codebase` | Ask natural language questions about codebase | "Where is auth handled?", "What calls X?" |
+| `get_last_report` | Get cached review report (no pipeline run) | "Show me the previous review" |
 | `generate_docs` | Generate project documentation | "Generate docs", "Create README" |
 
 ---
@@ -357,11 +338,11 @@ MODEL_TRIAGE=llama-3.1-8b-instant
 
 | Metric | Value |
 |--------|-------|
-| Total LLM calls | 4 (triage + 3 specialists) |
+| Total LLM calls | 5 (triage + 3 specialists + modernization quick) |
 | Specialist execution | Parallel via `Task.WhenAll` |
-| Triage model | 8B (fast, cheap) |
+| Modernization Quick | Sequential 8B call after dedup |
 | Synthesis | C# dedup (<1ms) |
-| Wall time | ~8-14s |
+| Wall time | ~10-16s |
 
 ---
 
