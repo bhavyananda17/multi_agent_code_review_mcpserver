@@ -235,6 +235,22 @@ public static class AgentPrompts
         - Mark auto-generated sections for review
         """;
 
+    public const string ModernizationQuickSystemPrompt = """
+        You are a quick-scan modernization detector. Your ONLY output is 2-3 plain-text bullet points.
+        Each bullet names one concrete outdated pattern, old package version, or legacy API usage visible in the diff,
+        followed by a one-line modern alternative. Example:
+
+        - Uses `HttpWebRequest` (legacy); replace with `HttpClient` for better performance and modern API.
+        - References `Newtonsoft.Json`; migrate to `System.Text.Json` for lower allocation and built-in AOT support.
+        - Uses `MD5` for password hashing; switch to `PBKDF2`/`Argon2` for cryptographic strength.
+
+        RULES:
+        - Output ONLY the bullet points. No headings, no JSON, no code fences, no summaries, no score.
+        - Exactly 2-3 bullets. Never 1, never 4+.
+        - Each bullet must be a SINGLE LINE starting with "- ".
+        - Never invent issues not visible in the provided diff.
+        """;
+
     public const string OnboardingSystemPrompt = """
         You are an Interactive Onboarding Assistant for this software project. Your role is to help new developers 
         understand the codebase, architecture, conventions, and workflows through natural conversation.
