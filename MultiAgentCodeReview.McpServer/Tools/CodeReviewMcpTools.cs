@@ -52,7 +52,16 @@ public class CodeReviewMcpTools
 
         _pipelineCache[repo_path] = output;
 
+        var modernizationAgent = _agentFactory.CreateModernizationQuickAgent();
+        var modernizationResult = await modernizationAgent.AnalyzeAsync(output.Context);
+        var modernizationNotes = modernizationResult.Summary;
+
         var report = FormatReport(output);
+
+        if (!string.IsNullOrWhiteSpace(modernizationNotes))
+        {
+            report += $"\n---\n\n## Quick Modernization Notes\n\n{modernizationNotes}\n";
+        }
 
         _reportCache[repo_path] = report;
 

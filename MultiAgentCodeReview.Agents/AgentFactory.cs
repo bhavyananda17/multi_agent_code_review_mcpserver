@@ -64,6 +64,13 @@ public class AgentFactory
         return new OnboardingAgent(agent);
     }
 
+    public MultiAgentCodeReview.Core.Interfaces.IAgent CreateModernizationQuickAgent()
+    {
+        var modelConfig = GetModelConfig("onboarding");
+        var agent = CreateOpenAIAgent(modelConfig, "ModernizationQuickAgent", AgentPrompts.ModernizationQuickSystemPrompt);
+        return new ModernizationQuickAgent(agent);
+    }
+
     private IAgent CreateOpenAIAgent(ModelConfig modelConfig, string name, string systemMessage)
     {
         var apiKey = _config.ApiKey

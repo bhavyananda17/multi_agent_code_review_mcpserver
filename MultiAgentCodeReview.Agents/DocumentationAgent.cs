@@ -191,3 +191,45 @@ public class OnboardingAgent : MultiAgentCodeReview.Core.Interfaces.IOnboardingA
         return sb.ToString();
     }
 }
+
+public class ModernizationQuickAgent : MultiAgentCodeReview.Core.Interfaces.IAgent
+{
+    public string Name => "ModernizationQuickAgent";
+
+    private readonly IAgent _agent;
+
+    public ModernizationQuickAgent(IAgent agent)
+    {
+        _agent = agent;
+    }
+
+    public async Task<AgentResult> AnalyzeAsync(PipelineContext context, CancellationToken cancellationToken = default)
+    {
+        var userPrompt = BuildQuickPrompt(context);
+        var response = await _agent.GenerateReplyAsync(
+            new[] { new TextMessage(Role.User, userPrompt) },
+            cancellationToken: cancellationToken);
+        var content = response is TextMessage tm ? tm.Content : response.ToString();
+        return new AgentResult(new List<Finding>(), content ?? "");
+    }
+
+    private static string BuildQuickPrompt(PipelineContext context)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("Identify outdated patterns, old package versions, or legacy API usage in the changed files below.");
+        sb.AppendLine();
+        sb.AppendLine("Changed files:");
+        foreach (var file in context.ChangedFiles)
+        {
+            sb.AppendLine($"  - {file.Path} (+{file.Additions} -{file.Deletions})");
+        }
+        sb.AppendLine();
+        sb.AppendLine("Diff content:");
+        foreach (var content in AgentHelpers.ReadChangedFileContents(context))
+        {
+            sb.AppendLine(content);
+        }
+        AgentHelpers.AppendDependencyGraph(sb, context);
+        return sb.ToString();
+    }
+}
