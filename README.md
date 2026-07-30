@@ -10,29 +10,55 @@ A production-grade multi-agent code review system built with Microsoft AutoGen a
 
 ```mermaid
 graph TB
-    Client[CLI / MCP Client] -->|"review /ask /docs"| Server[MultiAgentCodeReview]
+    classDef small fill:#e3f2fd,stroke:#1565c0
+    classDef large fill:#fce4ec,stroke:#c62828
+    classDef support fill:#f3e5f5,stroke:#6a1b9a
 
-    Server --> Pipeline[CodeReviewPipeline]
-    Pipeline --> Filter[1. FilterStage]
-    Filter --> Triage[2. TriageAgent 8B]
-    Triage --> Specialists[3. Specialists 70B]
-    Specialists --> Dedup[4. C# Dedup]
-    Dedup --> Modern[5. ModernizationQuick 8B]
+    subgraph "CLI / MCP Client"
+        C[User Request]
+    end
 
-    Modern --> Output[Markdown Report]
-    Output --> Client
+    subgraph "Code Review Pipeline — 5 Sequential Stages"
+        direction LR
+        F1["1. FilterStage<br/><i>.cs files + deps</i>"]
+        F2["2. TriageAgent<br/><i>routes to specialists</i>"]
+        F3["3. Specialist Agents<br/><i>Security / Performance / Logic</i>"]
+        F4["4. C# Dedup<br/><i>merge + sort findings</i>"]
+        F5["5. ModernizationQuick<br/><i>legacy pattern scan</i>"]
+    end
 
-    Server --> Onboard[OnboardingAgent 8B]
-    Server --> Doc[DocumentationAgent 8B]
+    subgraph "Specialist Agents (run in parallel)"
+        SA[SecurityAgent]:::large
+        PA[PerformanceAgent]:::large
+        LA[LogicAgent]:::large
+    end
 
-    Client -->|"ask"| Onboard
-    Client -->|"docs"| Doc
+    subgraph "Support Agents (separate commands)"
+        OA[OnboardingAgent]:::support
+        DA[DocumentationAgent]:::support
+    end
 
-    Specialists --> Groq70[Groq Llama 3.3-70B]
-    Triage --> Groq8[Groq Llama 3.1-8B]
-    Modern --> Groq8
-    Onboard --> Groq8
-    Doc --> Groq8
+    subgraph "LLM Backend — Groq API"
+        M70[Llama 3.3-70B]:::large
+        M8[Llama 3.1-8B]:::small
+    end
+
+    C --> F1
+    F1 --> F2
+    F2 --> F3
+    F3 --> F4
+    F4 --> F5
+    F5 --> Report[Markdown Report]
+    Report --> C
+
+    F3 -.-> SA & PA & LA
+    SA & PA & LA -.-> M70
+    F2 -.-> M8
+    F5 -.-> M8
+
+    C -.->|"ask"| OA
+    C -.->|"docs"| DA
+    OA & DA -.-> M8
 ```
 
 ---
