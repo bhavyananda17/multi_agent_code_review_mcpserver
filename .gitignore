@@ -8,6 +8,9 @@ obj/
 # Review cache
 .review-cache.json
 
+# Local scratch/test repo
+TestCodeReviewRepo/
+
 # Ruff cache
 .ruff_cache/
 

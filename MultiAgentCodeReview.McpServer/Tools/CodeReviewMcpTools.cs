@@ -13,7 +13,6 @@ public class CodeReviewMcpTools
 {
     private readonly CodeReviewPipeline _pipeline;
     private readonly AgentFactory _agentFactory;
-    private static readonly Dictionary<string, string> _reportCache = new();
     private static readonly Dictionary<string, ReviewOutput> _pipelineCache = new();
     private const string ReportFileName = ".codereview/last_report.md";
 
@@ -62,8 +61,6 @@ public class CodeReviewMcpTools
         {
             report += $"\n---\n\n## Quick Modernization Notes\n\n{modernizationNotes}\n";
         }
-
-        _reportCache[repo_path] = report;
 
         Directory.CreateDirectory(reportDir);
         await File.WriteAllTextAsync(reportPath, report);
@@ -431,11 +428,6 @@ public class CodeReviewMcpTools
         }
 
         sb.AppendLine();
-    }
-
-    internal string? GetCachedReport(string repo_path)
-    {
-        return _reportCache.TryGetValue(repo_path, out var report) ? report : null;
     }
 
     private sealed class ReportMeta

@@ -326,16 +326,15 @@ private AgentResult SynthesizeFindings(List<(string AgentName, AgentResult Resul
 
 ## MCP Server Implementation
 
-### 4 MCP Tools
+### 3 MCP Tools
 
-The MCP server (`MultiAgentCodeReview.McpServer`) exposes 4 tools via stdio transport:
+The MCP server (`MultiAgentCodeReview.McpServer`) exposes 3 tools via stdio transport:
 
 
 | Tool | Purpose | Runs Pipeline? | LLM Calls |
 |------|---------|----------------|-----------|
 | `review_repo` | Full multi-agent code review | Always | 4 (triage + 3 specialists) |
 | `ask_codebase` | Answer questions about code | If not cached | 1 (onboarding) + optional pipeline |
-| `get_last_report` | Retrieve cached report | Never | 0 |
 | `generate_docs` | Generate project documentation | If not cached | 1 (documentation) + optional pipeline |
 
 ### Tool Implementation
@@ -354,7 +353,6 @@ public async Task<string> ReviewRepo(string repo_path, string commit_hash, strin
     
     // 3. Format as markdown
     var report = FormatReport(output);
-    _reportCache[repo_path] = report;
     
     // 4. Write to disk
     await File.WriteAllTextAsync(Path.Combine(repo_path, ".codereview/last_report.md"), report);
@@ -421,30 +419,7 @@ public async Task<string> AskCodebase(string repo_path, string question)
 - "What calls the IUserRepository interface?"
 - "Which files would break if I change the IAgent interface?"
 
-#### 3. get_last_report
-```csharp
-[McpServerTool]
-[Description("Returns the most recent review report...")]
-public async Task<string> GetLastReport(string repo_path)
-{
-    // 1. Check memory cache
-    if (_reportCache.TryGetValue(repo_path, out var cached))
-        return cached;
-    
-    // 2. Check disk cache
-    var filePath = Path.Combine(repo_path, ".codereview", "last_report.md");
-    if (File.Exists(filePath))
-    {
-        var report = await File.ReadAllTextAsync(filePath);
-        _reportCache[repo_path] = report;
-        return report;
-    }
-    
-    return "No report found for this repo path.";
-}
-```
-
-#### 4. generate_docs
+#### 3. generate_docs
 ```csharp
 [McpServerTool]
 [Description("Generate project documentation...")]
@@ -586,7 +561,7 @@ public record TriageResult(
 
 ## Caching Strategy
 
-### Three-Layer Cache
+### Two-Layer Cache
 
 1. **In-Memory Pipeline Cache** (`_pipelineCache`)
    - Key: `repo_path`
@@ -594,13 +569,7 @@ public record TriageResult(
    - Lifetime: Process lifetime
    - Purpose: Reuse pipeline results for `ask_codebase` and `generate_docs`
 
-2. **In-Memory Report Cache** (`_reportCache`)
-   - Key: `repo_path`
-   - Value: `string` (formatted markdown)
-   - Lifetime: Process lifetime
-   - Purpose: Fast retrieval for `get_last_report`
-
-3. **Disk Report Cache** (`{repo_path}/.codereview/last_report.md`)
+2. **Disk Report Cache** (`{repo_path}/.codereview/last_report.md`)
    - Persistent across restarts
    - Purpose: Long-term storage, sharable across tools
 
@@ -992,7 +961,7 @@ New: IPythonRuffService interface + PythonRuffService implementation
 ### Achieved Goals
 
 ✅ **MCP Server Operational**
-- 4 tools fully functional
+- 3 tools fully functional
 - stdio transport working with OpenCode
 - Zero errors in current implementation
 
@@ -1071,12 +1040,12 @@ The MultiAgentCodeReview project is a **fully functional, production-grade MCP s
 1. **Agent-Computer Interface (ACI)** for accurate line number extraction
 2. **C# Deduplication** replacing LLM synthesis for speed + accuracy
 3. **Parallel Specialist Execution** for 2.5x speedup
-4. **Three-Layer Caching** for cost optimization
+4. **Two-Layer Caching** for cost optimization
 5. **MCP Integration** for seamless IDE/editor integration
 
 **Production Readiness:**
 - ✅ Zero errors in current build
-- ✅ All 4 MCP tools functional
+- ✅ All 3 MCP tools functional
 - ✅ Comprehensive documentation
 - ✅ Environment-based configuration
 - ✅ Retry logic for rate limits

@@ -80,14 +80,14 @@ This project:
 - References `MultiAgentCodeReview.Orchestration` and `MultiAgentCodeReview.Agents`
 - Uses `ModelContextProtocol` NuGet package (official Microsoft/Anthropic SDK)
 - Communicates with OpenCode via **stdio transport only** (no HTTP, no SSE, no ports)
-- Exposes exactly **4 MCP tools** (see Phase 3)
+- Exposes exactly **3 MCP tools** (see Phase 3)
 - Has its own `appsettings.json` for MCP-specific config
 
 ---
 
-## 3. The 4 MCP Tools — Exact Definitions
+## 3. The 3 MCP Tools — Exact Definitions
 
-> ✅ DECIDED: These are the only 4 tools. Do not add more without asking.
+> ✅ DECIDED: These are the only 3 tools. Do not add more without asking.
 
 ### Tool 1: `review_repo`
 ```
@@ -115,17 +115,7 @@ Parameters:
 Returns:     string — OnboardingAgent's answer grounded in Roslyn analysis
 ```
 
-### Tool 3: `get_last_report`
-```
-Name:        get_last_report
-Description: Returns the most recent review report for a repo path without re-running the pipeline.
-             Returns null/empty if no review has been run yet for this path.
-Parameters:
-  - repo_path  (string, required) — absolute path to the git repo on disk
-Returns:     string — cached markdown report, or "No report found for this repo."
-```
-
-### Tool 4: `generate_docs`
+### Tool 3: `generate_docs`
 ```
 Name:        generate_docs
 Description: Generate project documentation for a codebase.
@@ -229,17 +219,15 @@ OpenCode must:
    - Build a `PipelineContext` from `repo_path`, `commit_hash`, `base_commit`
    - Call the orchestrator's existing run method (exact method name from Phase 1 discovery)
    - Return the synthesis markdown string
-3. Add a simple in-memory cache (`Dictionary<string, string>`) to store the last report per `repo_path`
-   — this serves `get_last_report` in Phase 5
+3. Add disk-based report caching per `repo_path` (`{repo_path}/.codereview/last_report.md`) so a cached report can be returned when the same commit is re-reviewed
 
 After implementing, print:
 ```
 PHASE 3 COMPLETE.
 
 🔴 DECISION REQUIRED — Report caching:
-The in-memory cache resets when the MCP server process restarts.
-Should I also write the report to a file at: {repo_path}/.codereview/last_report.md ?
-This makes get_last_report work across server restarts.
+Should the review report be written to a file at: {repo_path}/.codereview/last_report.md ?
+This lets review_repo return the cached report instead of re-running the pipeline.
 Type YES to write to file too, or NO for in-memory only.
 ```
 
@@ -273,23 +261,7 @@ Type A or B.
 
 ---
 
-### Phase 5 — Wire Tool 3: `get_last_report`
-
-> ✅ DECIDED: This is the simplest tool. No LLM calls, no pipeline.
-
-OpenCode must:
-1. Check the in-memory cache first
-2. If YES was chosen for file caching in Phase 3, also check `{repo_path}/.codereview/last_report.md`
-3. Return the report string or `"No report found for this repo path."`
-
-After implementing, print:
-```
-PHASE 5 COMPLETE.
-```
-
----
-
-### Phase 6 — Wire Tool 4: `generate_docs`
+### Phase 5 — Wire Tool 3: `generate_docs`
 
 > ⚠️ CONSTRAINT: DocumentationAgent.GenerateDocumentationAsync is already implemented. Call it exactly as-is.
 
@@ -304,12 +276,12 @@ OpenCode must:
 
 After implementing, print:
 ```
-PHASE 6 COMPLETE. All 4 tools implemented.
+PHASE 5 COMPLETE. All 3 tools implemented.
 ```
 
 ---
 
-### Phase 7 — OpenCode Config
+### Phase 6 — OpenCode Config
 
 > ✅ DECIDED: Generate the opencode.json snippet and a README section.
 
@@ -335,12 +307,12 @@ OpenCode must create:
 **`MCP_SETUP.md`** — a short setup guide:
 - How to add to opencode.json
 - How to test the server starts: `dotnet run --project MultiAgentCodeReview.McpServer`
-- Example OpenCode prompts for each of the 4 tools
+- Example OpenCode prompts for each of the 3 tools
 - Note about Groq rate limits (1000 RPD, 8 agents per review = ~125 reviews/day)
 
 After creating both files, print:
 ```
-PHASE 7 COMPLETE.
+PHASE 6 COMPLETE.
 
 🔴 DECISION REQUIRED — Final check before done:
 I have not run the project yet. Should I:
@@ -407,7 +379,6 @@ Type A or B.
 **Applied to your MCP server:**
 - Your `review_repo` tool IS the orchestrator call — it fans out to all 8 agents
 - Your `ask_codebase` tool is equivalent to Claude Code's Guide agent pattern
-- Your `get_last_report` tool is equivalent to Claude Code's read-only Explore agent pattern
 - Your `generate_docs` tool is a specialized task agent for documentation generation
 - If OpenCode calls `review_repo` and it fails partway through, it should return partial results
   with a clear error note — not crash the MCP server process
@@ -429,7 +400,7 @@ For your records, here are all the DECISION REQUIRED stops in order:
 | 2 | Phase 2 | How to share DI setup between Host and McpServer? | A (copy) / B (extract) |
 | 3 | Phase 3 | Should reports also be written to disk? | YES / NO |
 | 4 | Phase 4 | How to handle Roslyn analysis cost for ask_codebase? | A (always fresh) / B (cache) |
-| 5 | Phase 7 | Should I run dotnet build to verify? | A (run build) / B (stop here) |
+| 5 | Phase 6 | Should I run dotnet build to verify? | A (run build) / B (stop here) |
 
 ---
 
@@ -441,7 +412,7 @@ The MCP server transformation is complete when:
 - [ ] `dotnet run --project MultiAgentCodeReview.McpServer` starts without crashing
 - [ ] `opencode.snippet.json` exists and has the correct OpenCode config format
 - [ ] `MCP_SETUP.md` exists with setup instructions
-- [ ] All 4 tools return real data (not `"NOT_IMPLEMENTED"`)
+- [ ] All 3 tools return real data (not `"NOT_IMPLEMENTED"`)
 - [ ] No existing project files were modified
 - [ ] No new packages were added without being listed in this file or explicitly approved
 
