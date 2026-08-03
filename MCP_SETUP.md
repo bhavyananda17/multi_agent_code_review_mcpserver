@@ -71,20 +71,7 @@ Ask a natural language question about the codebase.
 | `repo_path` | Yes | Absolute path to the git repo |
 | `question` | Yes | Natural language question |
 
-### 3. `get_last_report`
-
-Get the most recent review report without re-running the pipeline.
-
-**Example prompts:**
-- "Get the last code review report"
-- "Show me the previous review results"
-
-**Parameters:**
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `repo_path` | Yes | Absolute path to the git repo |
-
-### 4. `generate_docs`
+### 3. `generate_docs`
 
 Generate project documentation for a codebase.
 
@@ -156,10 +143,6 @@ To increase limits, upgrade your Groq API plan or configure per-role model overr
 1. Verify `opencode.json` has the correct MCP config
 2. Restart OpenCode (quit and reopen)
 3. Check that the `command` path is correct
-
-### "No report found" error
-
-Run `review_repo` first to generate a report, then `get_last_report` will return it.
 
 ## Architecture
 

@@ -18,13 +18,12 @@ graph TB
         C[User Request]
     end
 
-    subgraph "Code Review Pipeline — 5 Sequential Stages"
+    subgraph "Code Review Pipeline — 4 Sequential Stages"
         direction LR
         F1["1. FilterStage<br/><i>.cs files + deps</i>"]
         F2["2. TriageAgent<br/><i>routes to specialists</i>"]
         F3["3. Specialist Agents<br/><i>Security / Performance / Logic</i>"]
         F4["4. C# Dedup<br/><i>merge + sort findings</i>"]
-        F5["5. ModernizationQuick<br/><i>legacy pattern scan</i>"]
     end
 
     subgraph "Specialist Agents (run in parallel)"
@@ -47,14 +46,12 @@ graph TB
     F1 --> F2
     F2 --> F3
     F3 --> F4
-    F4 --> F5
-    F5 --> Report[Markdown Report]
+    F4 --> Report[Markdown Report]
     Report --> C
 
     F3 -.-> SA & PA & LA
     SA & PA & LA -.-> M70
     F2 -.-> M8
-    F5 -.-> M8
 
     C -.->|"ask"| OA
     C -.->|"docs"| DA
@@ -77,6 +74,8 @@ MultiAgentCodeReview.Orchestration (references Core + Agents)
     ├── MultiAgentCodeReview.Host        (references Orchestration)
     └── MultiAgentCodeReview.McpServer   (references Orchestration + Agents)
 ```
+
+> **Note:** `MultiAgentCodeReview.McpServer` is not yet part of `MultiAgentCodeReview.slnx` — build it separately with `dotnet build MultiAgentCodeReview.McpServer`.
 
 ### Projects
 
@@ -111,7 +110,7 @@ graph LR
     A["1. Filter"] --> B["2. Triage (8B)"]
     B --> C["3. Specialists (70B)"]
     C --> D["4. C# Dedup"]
-    D --> E["5. ModernizationQuick (8B)"]
+    D --> Report["Markdown Report"]
 
     subgraph "Stage 3 — Parallel"
         C1[Security]
@@ -133,9 +132,9 @@ graph LR
 |-------|-------------|-------------------|
 | **Filter** | Git diff + Roslyn dependency graph → source files only | `FilterStage.cs` — excludes `.md`, `.json`, `.xml`, etc. |
 | **Triage** | 8B model classifies diff, routes to 1-3 specialists | `TriageAgent.cs` — outputs `{"selected_agents":[...]}` |
-| **Specialists** | 3 agents run in parallel via `Task.WhenAll` | Each agent works on the 70B model through Groq API |
+| **Specialists** | 3 agents launched in parallel via `Task.WhenAll`, staggered 15s apart | Staggered to respect Groq free-tier rate limits (30 RPM / 12K TPM); each agent works on the 70B model through Groq API |
 | **Dedup** | C# code merges findings, boosts cross-agent agreement | `CodeReviewPipeline.cs` — no LLM call needed |
-| **ModernizationQuick** | Sequential quick-scan for outdated patterns and legacy APIs | `ModernizationQuickAgent.cs` — 8B model, runs after dedup |
+| **ModernizationQuick** | Quick-scan for outdated patterns and legacy APIs | `ModernizationQuickAgent.cs` — 8B model, runs after the pipeline via the `review_repo` MCP tool |
 
 ---
 
@@ -263,7 +262,7 @@ Specialists are instructed to use `<thinking>` tags before outputting JSON, ensu
 
 ## MCP Tools
 
-The MCP server exposes 4 tools over stdio transport. `review_repo` also runs a lightweight modernization quick-scan after the pipeline completes and appends the results as a `## Quick Modernization Notes` section to the report.
+The MCP server exposes 3 tools over stdio transport. `review_repo` also runs a lightweight modernization quick-scan after the pipeline completes and appends the results as a `## Quick Modernization Notes` section to the report.
 
 ```mermaid
 graph TB
@@ -274,24 +273,22 @@ graph TB
     subgraph "Tools"
         T1[review_repo]
         T2[ask_codebase]
-        T3[get_last_report]
-        T4[generate_docs]
+        T3[generate_docs]
     end
 
     Tools --> T1
     Tools --> T2
     Tools --> T3
-    Tools --> T4
 
     T1 --> Pipeline[CodeReviewPipeline]
     T1 --> Modern[ModernizationQuickAgent]
     Modern --> Report[Report + Modernization Notes]
 
     T2 -->|"uses cache or runs pipeline"| Pipeline
-    T3 --> Cache[(Report Cache)]
-    T4 -->|"uses cache or runs pipeline"| Pipeline
+    T3 -->|"uses cache or runs pipeline"| Pipeline
 
     Pipeline --> Report
+    T1 --> Cache[(Report Cache)]
     Cache --> Disk[.codereview/last_report.md]
 ```
 
@@ -299,7 +296,6 @@ graph TB
 |------|-------------|-------------|
 | `review_repo` | Run full multi-agent review + modernization quick-scan | "Review this commit", "Check this PR" |
 | `ask_codebase` | Ask natural language questions about codebase | "Where is auth handled?", "What calls X?" |
-| `get_last_report` | Get cached review report (no pipeline run) | "Show me the previous review" |
 | `generate_docs` | Generate project documentation | "Generate docs", "Create README" |
 
 ---
@@ -365,10 +361,12 @@ MODEL_TRIAGE=llama-3.1-8b-instant
 | Metric | Value |
 |--------|-------|
 | Total LLM calls | 5 (triage + 3 specialists + modernization quick) |
-| Specialist execution | Parallel via `Task.WhenAll` |
-| Modernization Quick | Sequential 8B call after dedup |
+| Specialist execution | Parallel via `Task.WhenAll` (staggered 15s apart) |
+| Modernization Quick | Sequential 8B call after the pipeline (via `review_repo` tool) |
 | Synthesis | C# dedup (<1ms) |
-| Wall time | ~10-16s |
+| Wall time | ~30-45s (15s stagger + per-agent latency) |
+
+> **Parallelism note:** The architecture is parallel by design — all specialist agents are launched together via `Task.WhenAll`. A fixed 15s stagger is applied between their starts to respect Groq free tier rate limits (30 RPM / 12K TPM on llama-3.3-70b-versatile). Requests that still hit a 429 are retried automatically with backoff.
 
 ---
 
@@ -380,4 +378,48 @@ MODEL_TRIAGE=llama-3.1-8b-instant
 - Rate limiting infrastructure built but not fully wired
 - RAG/knowledge search interfaces defined but unimplemented
 - Roslyn analysis limited to C# projects
-- Python/Ruff integration planned but not started
+- Python/Ruff integration planned — see [below](#pythonruff-integration-planned)
+
+### Python/Ruff integration (planned)
+
+The pipeline is currently C#-only: `FilterStage` whitelists `.cs`, `.csproj`, `.fsproj`, `.vbproj`, `.sln`, `.fs`, `.fsx`, `.props`, `.targets` (so `.py` files are silently dropped), and `CodeAnalysisTool` is Roslyn/C# only. The plan is to add a Python analysis stage powered by Ruff:
+
+```mermaid
+graph TB
+    classDef current fill:#e3f2fd,stroke:#1565c0
+    classDef future fill:#fce4ec,stroke:#c62828
+    classDef merged fill:#e8f5e9,stroke:#2e7d32
+
+    subgraph "Current State"
+        F1["FilterStage<br/>C# extensions only<br/>❌ .py dropped"]:::current
+        CA["CodeAnalysisTool<br/>Roslyn / C# only"]:::current
+    end
+
+    subgraph "Future State"
+        F2["FilterStage v2<br/>+ .py .pyi .pyx"]:::future
+        PC["PipelineContext<br/>+ PythonFiles"]:::future
+        S5["Stage 5: Python Analysis"]:::future
+        RS["PythonRuffService<br/>ruff check --output-format json"]:::future
+        CONV["Ruff JSON → Finding<br/>S→HIGH, E→HIGH, W→MEDIUM, F→CRITICAL, C→LOW"]:::future
+    end
+
+    MERGE["Merge C# + Python findings<br/>sorted by severity"]:::merged
+
+    F1 --> F2
+    F2 --> PC
+    PC --> S5
+    S5 --> RS
+    RS --> CONV
+    CONV --> MERGE
+    MERGE --> Report["Combined Markdown Report"]
+```
+
+**Implementation checklist:**
+- `FilterStage.cs` — add `.py`, `.pyi`, `.pyx` to the source extension whitelist and categorize files into C# vs Python
+- `PipelineContext` — add a `PythonFiles` collection
+- `CodeReviewPipeline.cs` — add a Python analysis step after synthesis when Python files are present
+- **New:** `IPythonRuffService` (Core/Interfaces) + `PythonRuffService` (Orchestration)
+- Register `IPythonRuffService` in `ServiceCollectionExtensions.cs`
+- Env vars: `PYTHON_RUFF_SERVICE_URL` (HTTP option) or `RUFF_EXECUTABLE_PATH` (process option)
+
+**Service options:** (A) HTTP endpoint that shells out to `ruff check --output-format json`, (B) direct process invocation of the `ruff` CLI, or (C) embedded Python via Python.NET.
