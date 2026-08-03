@@ -10,9 +10,9 @@ A production-grade multi-agent code review system built with Microsoft AutoGen a
 
 ```mermaid
 graph TB
-    classDef small fill:#e3f2fd,stroke:#1565c0
-    classDef large fill:#fce4ec,stroke:#c62828
-    classDef support fill:#f3e5f5,stroke:#6a1b9a
+    classDef small fill:#1565c0,stroke:#0d47a1,color:#ffffff
+    classDef large fill:#c62828,stroke:#b71c1c,color:#ffffff
+    classDef support fill:#6a1b9a,stroke:#4a148c,color:#ffffff
 
     subgraph "CLI / MCP Client"
         C[User Request]
@@ -386,9 +386,9 @@ The pipeline is currently C#-only: `FilterStage` whitelists `.cs`, `.csproj`, `.
 
 ```mermaid
 graph TB
-    classDef current fill:#e3f2fd,stroke:#1565c0
-    classDef future fill:#fce4ec,stroke:#c62828
-    classDef merged fill:#e8f5e9,stroke:#2e7d32
+    classDef current fill:#1565c0,stroke:#0d47a1,color:#ffffff
+    classDef future fill:#c62828,stroke:#b71c1c,color:#ffffff
+    classDef merged fill:#2e7d32,stroke:#1b5e20,color:#ffffff
 
     subgraph "Current State"
         F1["FilterStage<br/>C# extensions only<br/>❌ .py dropped"]:::current
