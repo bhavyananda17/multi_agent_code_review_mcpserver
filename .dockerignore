@@ -1,0 +1,30 @@
+# Build artifacts (**/ = match at any depth; bare `bin/` only matches repo root)
+**/bin/
+**/obj/
+**/*.dll
+**/*.pdb
+
+# Git
+.git/
+.gitignore
+.github/
+
+# IDE
+.vs/
+.vscode/
+*.user
+
+# Project-specific
+TestCodeReviewRepo/
+TestAutoGenApi/
+**/.codereview/
+**/.review-cache.json
+*.log
+
+# Secrets / env
+.env
+*.env
+appsettings.Development.json
+
+# Dependencies
+**/node_modules/

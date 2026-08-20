@@ -1,6 +1,8 @@
 <Solution>
   <Project Path="MultiAgentCodeReview.Agents/MultiAgentCodeReview.Agents.csproj" />
+  <Project Path="MultiAgentCodeReview.Api/MultiAgentCodeReview.Api.csproj" />
   <Project Path="MultiAgentCodeReview.Core/MultiAgentCodeReview.Core.csproj" />
   <Project Path="MultiAgentCodeReview.Host/MultiAgentCodeReview.Host.csproj" />
+  <Project Path="MultiAgentCodeReview.McpServer/MultiAgentCodeReview.McpServer.csproj" />
   <Project Path="MultiAgentCodeReview.Orchestration/MultiAgentCodeReview.Orchestration.csproj" />
 </Solution>
