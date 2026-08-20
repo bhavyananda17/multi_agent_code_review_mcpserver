@@ -27,3 +27,7 @@ Thumbs.db
 # NuGet
 packages/
 *.nupkg
+
+# Custom
+DEPLOY.md
+.claude/
