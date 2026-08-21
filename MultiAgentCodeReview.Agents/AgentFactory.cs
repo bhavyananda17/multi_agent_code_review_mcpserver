@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Reflection;
 using AutoGen;
 using AutoGen.Core;
 using AutoGen.OpenAI;
@@ -77,20 +79,41 @@ public class AgentFactory
             ?? Environment.GetEnvironmentVariable("GROQ_API_KEY")
             ?? throw new InvalidOperationException("No API key configured. Set MULTIAGENT_API_KEY or GROQ_API_KEY.");
 
-        var options = new OpenAIClientOptions
+        var clientOptions = new OpenAIClientOptions
         {
             Endpoint = new Uri(_config.BaseUrl),
             NetworkTimeout = TimeSpan.FromSeconds(90)
         };
 
-        var chatClient = new ChatClient(modelConfig.ModelId, apiKey, options);
+        var chatClient = new ChatClient(modelConfig.ModelId, apiKey, clientOptions);
+
+        var chatOptions = new ChatCompletionOptions
+        {
+            Temperature = (float)modelConfig.Temperature,
+            MaxTokens = modelConfig.MaxTokens
+        };
+
+        if (modelConfig.ModelId.StartsWith("qwen/", StringComparison.OrdinalIgnoreCase))
+        {
+            var field = typeof(ChatCompletionOptions).GetField(
+                "<SerializedAdditionalRawData>k__BackingField",
+                BindingFlags.NonPublic | BindingFlags.Instance);
+
+            if (field != null)
+            {
+                var raw = new Dictionary<string, BinaryData>
+                {
+                    ["reasoning_effort"] = BinaryData.FromObjectAsJson("none")
+                };
+                field.SetValue(chatOptions, raw);
+            }
+        }
 
         return new OpenAIChatAgent(
             chatClient: chatClient,
             name: name,
-            systemMessage: systemMessage,
-            temperature: (float)modelConfig.Temperature,
-            maxTokens: modelConfig.MaxTokens)
+            options: chatOptions,
+            systemMessage: systemMessage)
             .RegisterMessageConnector();
     }
 
