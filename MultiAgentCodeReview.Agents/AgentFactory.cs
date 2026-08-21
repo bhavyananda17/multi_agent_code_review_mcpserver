@@ -107,6 +107,10 @@ public class AgentFactory
                 };
                 field.SetValue(chatOptions, raw);
             }
+            else
+            {
+                Console.Error.WriteLine($"[AgentFactory] WARNING: could not set reasoning_effort on {modelConfig.ModelId} — SerializedAdditionalRawData backing field not found (OpenAI SDK internals may have changed); qwen tool_use_failed errors may return.");
+            }
         }
 
         return new OpenAIChatAgent(
