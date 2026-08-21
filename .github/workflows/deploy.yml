@@ -1,0 +1,66 @@
+name: Build, Test, and Deploy Api to Render
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'MultiAgentCodeReview.Api/**'
+      - 'MultiAgentCodeReview.Core/**'
+      - 'MultiAgentCodeReview.Orchestration/**'
+      - 'MultiAgentCodeReview.Agents/**'
+      - '.github/workflows/deploy.yml'
+
+env:
+  RENDER_SERVICE_ID: srv-da43m6k9v7es739599s0
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # CI gate: no test project exists in this repo yet, so a clean build
+      # is the bar a change must clear before it's allowed to deploy.
+      - name: Restore & build
+        run: dotnet build MultiAgentCodeReview.slnx -c Release
+
+      - name: Trigger Render deploy
+        id: deploy
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        run: |
+          response=$(curl -sf -X POST "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys" \
+            -H "Authorization: Bearer ${RENDER_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d '{}')
+          deploy_id=$(echo "$response" | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])")
+          echo "deploy_id=$deploy_id" >> "$GITHUB_OUTPUT"
+          echo "Triggered Render deploy: $deploy_id"
+
+      - name: Wait for deploy to go live
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        run: |
+          deploy_id="${{ steps.deploy.outputs.deploy_id }}"
+          for i in $(seq 1 40); do
+            status=$(curl -sf -H "Authorization: Bearer ${RENDER_API_KEY}" \
+              "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys/${deploy_id}" \
+              | python3 -c "import json,sys; print(json.load(sys.stdin)['status'])")
+            echo "Deploy status: $status"
+            if [ "$status" = "live" ]; then
+              exit 0
+            fi
+            case "$status" in
+              build_failed|update_failed|canceled|pre_deploy_failed)
+                echo "Deploy ended in failure state: $status"
+                exit 1
+                ;;
+            esac
+            sleep 15
+          done
+          echo "Timed out waiting for deploy to go live"
+          exit 1
