@@ -14,6 +14,7 @@ COPY MultiAgentCodeReview.Agents/MultiAgentCodeReview.Agents.csproj MultiAgentCo
 COPY MultiAgentCodeReview.Orchestration/MultiAgentCodeReview.Orchestration.csproj MultiAgentCodeReview.Orchestration/
 COPY MultiAgentCodeReview.Host/MultiAgentCodeReview.Host.csproj MultiAgentCodeReview.Host/
 COPY MultiAgentCodeReview.McpServer/MultiAgentCodeReview.McpServer.csproj MultiAgentCodeReview.McpServer/
+COPY MultiAgentCodeReview.Api/MultiAgentCodeReview.Api.csproj MultiAgentCodeReview.Api/
 
 RUN dotnet restore MultiAgentCodeReview.slnx
 
@@ -27,6 +28,15 @@ RUN dotnet publish MultiAgentCodeReview.McpServer/MultiAgentCodeReview.McpServer
 # Stage 2 — Runtime
 # ============================================================
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+
+# git is required at REQUEST TIME — RepositorySourceResolver runs `git clone` inside
+# the running container when a caller passes a repo URL instead of a local path
+# (remote/HTTP callers have no shared filesystem with the server). apt-get needs
+# root, so this runs BEFORE switching to the non-root user.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # The official .NET 8+ runtime images ship with a built-in non-root
@@ -37,5 +47,6 @@ COPY --from=build /app/publish ./
 
 EXPOSE 8080
 ENV ASPNETCORE_URLS=http://+:8080
+ENV MCP_TRANSPORT=http
 
 ENTRYPOINT ["dotnet", "MultiAgentCodeReview.McpServer.dll"]

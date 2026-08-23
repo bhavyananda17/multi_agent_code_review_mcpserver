@@ -40,6 +40,7 @@ public static class ServiceCollectionExtensions
 
         services.AddTransient<IGitOperationsTool, GitOperationsTool>();
         services.AddSingleton<ICodeAnalysisTool, CodeAnalysisTool>();
+        services.AddTransient<IRepositorySourceResolver, RepositorySourceResolver>();
 
         services.AddTransient<FilterStage>();
         services.AddTransient<CodeReviewPipeline>();
