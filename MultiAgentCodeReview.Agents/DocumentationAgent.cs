@@ -210,7 +210,10 @@ public class ModernizationQuickAgent : MultiAgentCodeReview.Core.Interfaces.IAge
             new[] { new TextMessage(Role.User, userPrompt) },
             cancellationToken: cancellationToken);
         var content = response is TextMessage tm ? tm.Content : response.ToString();
-        return new AgentResult(new List<Finding>(), content ?? "");
+        // This Summary is surfaced verbatim in the review report — strip any reasoning
+        // trace the model emitted despite reasoning_effort:"none" (defensive; see
+        // AgentHelpers.StripThinkingTrace).
+        return new AgentResult(new List<Finding>(), AgentHelpers.StripThinkingTrace(content ?? ""));
     }
 
     private static string BuildQuickPrompt(PipelineContext context)
