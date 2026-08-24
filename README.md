@@ -2,7 +2,7 @@
 
 > **Intelligent, automated code review powered by multi-agent AI**
 
-A production-grade multi-agent code review system built with Microsoft AutoGen and Groq's Llama models. Analyzes C# projects with specialized agents for security, performance, and logic analysis. Exposed as an **MCP server** for seamless integration with OpenCode, VS Code, Claude Desktop, and other MCP clients.
+A production-grade multi-agent code review system built with Microsoft AutoGen and Groq's Llama models. Analyzes C# projects with specialized agents for security, performance, and logic analysis. Exposed as an **MCP server** for seamless integration with OpenCode, VS Code, Claude Desktop, and other MCP clients. **Deployed and live** on both Render (REST API) and AWS (full MCP server over HTTP) — see [Deployment](#deployment) for details.
 
 ---
 
