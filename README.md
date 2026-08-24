@@ -335,6 +335,66 @@ See [MCP_SETUP.md](MCP_SETUP.md) for detailed MCP configuration.
 
 ---
 
+## Deployment
+
+Two live cloud deployments run alongside local/stdio usage, each covering a different slice of the system:
+
+| Deployment | What's live | Stack | Auth |
+|------------|-------------|-------|------|
+| **Render** | Thin REST wrapper (`POST /api/review`) around the core pipeline | `MultiAgentCodeReview.Api`, Docker, Render (scale-to-zero), GitHub Actions CI/CD | `X-Api-Key` header |
+| **AWS** | The real MCP server — all 3 tools over HTTP transport | `MultiAgentCodeReview.McpServer`, Docker, EC2 + ECR + SSM, GitHub Actions CI/CD via OIDC | `X-Api-Key` header |
+
+### McpServer: Dual Transport
+
+`MultiAgentCodeReview.McpServer` speaks either transport depending on `MCP_TRANSPORT`, so local OpenCode usage is unaffected by the cloud deployment:
+
+```mermaid
+graph TB
+    classDef small fill:#1565c0,stroke:#0d47a1,color:#ffffff
+    classDef large fill:#c62828,stroke:#b71c1c,color:#ffffff
+    classDef support fill:#6a1b9a,stroke:#4a148c,color:#ffffff
+
+    Start{MCP_TRANSPORT}
+    Start -->|"stdio (default)"| Stdio[Host.CreateApplicationBuilder<br/>WithStdioServerTransport]:::small
+    Start -->|"http"| Http[WebApplication.CreateBuilder<br/>WithHttpTransport + MapMcp]:::large
+
+    Stdio --> Local[OpenCode<br/>spawns process locally]
+    Http --> Remote[Remote MCP Client<br/>over HTTPS/HTTP]
+
+    Resolver["RepositorySourceResolver<br/><i>local path OR git URL, transparently</i>"]:::support
+    Local -.-> Resolver
+    Remote -.-> Resolver
+```
+
+`RepositorySourceResolver` lets `repo_path` be either a local filesystem path (used as-is, stdio behavior unchanged) or a git URL (cloned to a temp dir and cleaned up after), so all 3 tools work identically whether the caller shares a filesystem with the server or not.
+
+### AWS Deployment Architecture
+
+```mermaid
+graph TB
+    classDef small fill:#1565c0,stroke:#0d47a1,color:#ffffff
+    classDef large fill:#c62828,stroke:#b71c1c,color:#ffffff
+    classDef support fill:#6a1b9a,stroke:#4a148c,color:#ffffff
+
+    Dev[git push] --> GHA[GitHub Actions]:::support
+    GHA -->|"dotnet build (CI gate)"| Gate{Build passes?}
+    Gate -->|"OIDC AssumeRole<br/>no stored AWS keys"| ECR[Amazon ECR]:::small
+    Gate -->|"SSM SendCommand"| EC2[EC2 t3.micro]:::large
+
+    ECR -->|"docker pull"| EC2
+    EC2 -.->|"SecureString params"| SSM[(SSM Parameter Store)]:::support
+    EC2 -->|"port 8080 only<br/>no SSH"| Client[MCP Client]
+
+    EC2 -->|"docker run --restart unless-stopped"| EC2
+```
+
+- **IAM roles, least privilege:** the GitHub Actions role can only push to this one ECR repo and send commands to this one EC2 instance; the EC2 instance role can only pull from this one ECR repo and read this project's own SSM parameter path.
+- **No SSH:** deploys happen entirely over IAM-authenticated SSM `send-command` — port 22 is never opened.
+- **Secrets:** `GROQ_API_KEY`, the MCP API key, and all per-role model overrides live in SSM Parameter Store as `SecureString`, fetched by a script on the instance at container-run time — never passed through the GitHub Actions command payload.
+- **Cost control:** the instance is started/stopped manually rather than kept running continuously; the container's `--restart unless-stopped` policy means it comes back on its own after a stop/start with no redeploy needed.
+
+---
+
 ## Configuration
 
 All settings via environment variables (prefix `MULTIAGENT_`):
