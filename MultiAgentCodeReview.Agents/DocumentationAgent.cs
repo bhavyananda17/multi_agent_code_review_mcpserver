@@ -156,7 +156,10 @@ public class OnboardingAgent : MultiAgentCodeReview.Core.Interfaces.IOnboardingA
             new[] { new TextMessage(Role.User, userPrompt) },
             cancellationToken: cancellationToken);
         var content = response is TextMessage tm ? tm.Content : response.ToString();
-        return content ?? "";
+        // Same defensive strip as ModernizationQuickAgent — OnboardingAgent uses the same
+        // qwen-backed "onboarding" role, so it's exposed to the same reasoning-trace risk
+        // even though reasoning_effort:"none" is sent via ReasoningEffortPolicy.
+        return AgentHelpers.StripThinkingTrace(content ?? "");
     }
 
     public Task<AgentResult> AnalyzeAsync(PipelineContext context, CancellationToken cancellationToken = default)
