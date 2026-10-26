@@ -24,4 +24,7 @@ public record EvaluationSummary(
     int Scored,
     int Unscored,
     int LowConfidence,
-    bool LowConfidenceExcluded);
+    bool LowConfidenceExcluded,
+    string? JudgeModel = null,
+    bool JudgeSameModelAsGenerators = false,
+    bool JudgeSameFamilyAsGenerators = false);

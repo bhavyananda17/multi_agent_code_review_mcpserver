@@ -18,6 +18,45 @@ namespace MultiAgentCodeReview.Agents;
 
 public class AgentFactory
 {
+    /// <summary>
+    /// Built-in model for a role when no MULTIAGENT_MODEL_&lt;ROLE&gt; override is set: a small model for routing and
+    /// Q&amp;A, a large one for analysis. These are models Groq's /models endpoint lists today; Groq retires models
+    /// regularly (the earlier llama-3.x defaults are gone), and a role pointing at a retired model fails with a 404,
+    /// so pin the ones you rely on with MULTIAGENT_MODEL_&lt;ROLE&gt;.
+    /// </summary>
+    public static string DefaultModelId(string role) => role switch
+    {
+        "triage" => "openai/gpt-oss-20b",
+        "onboarding" => "openai/gpt-oss-20b",
+        _ => "openai/gpt-oss-120b"
+    };
+
+    /// <summary>The model id a role actually runs on: the configured override, else the built-in default.</summary>
+    public static string EffectiveModelId(PipelineConfig config, string role) =>
+        config.Models.TryGetValue(role, out var configured) ? configured.ModelId : DefaultModelId(role);
+
+    /// <summary>The self-evaluation judge: an explicit eval model, else the synthesis model, else the built-in default.</summary>
+    public static string EffectiveJudgeModelId(PipelineConfig config) =>
+        config.Models.TryGetValue("eval", out var eval) ? eval.ModelId
+        : config.Models.TryGetValue("synthesis", out var synthesis) ? synthesis.ModelId
+        : DefaultModelId("eval");
+
+    /// <summary>The models that WRITE the findings the judge scores.</summary>
+    public static IReadOnlyList<string> GeneratorModelIds(PipelineConfig config) =>
+        new[] { "security", "performance", "logic" }.Select(r => EffectiveModelId(config, r)).Distinct().ToList();
+
+    /// <summary>
+    /// A rough model family for judge-independence checks: the leading letters of the name up to the first digit,
+    /// vendor prefix removed ("openai/gpt-oss-120b" and "gpt-oss-20b" are both "gpt-oss"; "qwen3.8-27b" is "qwen").
+    /// A heuristic, not a registry.
+    /// </summary>
+    public static string ModelFamily(string modelId)
+    {
+        var name = modelId.Contains('/') ? modelId[(modelId.LastIndexOf('/') + 1)..] : modelId;
+        var match = System.Text.RegularExpressions.Regex.Match(name.ToLowerInvariant(), @"^[a-z]+(?:-[a-z]+)*");
+        return match.Success ? match.Value : name.ToLowerInvariant();
+    }
+
     private readonly PipelineConfig _config;
     private readonly RateLimitedHttpClient _rateLimiter;
 
@@ -100,7 +139,8 @@ public class AgentFactory
         var clientOptions = new OpenAIClientOptions
         {
             Endpoint = new Uri(_config.BaseUrl),
-            NetworkTimeout = TimeSpan.FromSeconds(90)
+            // Follows the per-attempt agent timeout (80% of it) so the HTTP client gives up before the pipeline does.
+            NetworkTimeout = TimeSpan.FromSeconds(Math.Max(1, _config.Pipeline.AgentTimeoutSeconds * 0.8))
         };
 
         // qwen models on Groq emit a <think> reasoning trace inline in `content` by default.
@@ -118,6 +158,9 @@ public class AgentFactory
         {
             clientOptions.AddPolicy(new ReasoningEffortPolicy("none"), PipelinePosition.PerCall);
         }
+
+        // Count the tokens the provider reports for every call. Must be added before the ChatClient is built.
+        clientOptions.AddPolicy(new UsageTrackingPolicy(modelConfig.ModelId), PipelinePosition.PerCall);
 
         var chatClient = new ChatClient(modelConfig.ModelId, apiKey, clientOptions);
 
@@ -143,12 +186,7 @@ public class AgentFactory
         return new ModelConfig(
             Role: role,
             Provider: "groq",
-            ModelId: role switch
-            {
-                "triage" => "llama-3.1-8b-instant",
-                "onboarding" => "llama-3.1-8b-instant",
-                _ => "llama-3.3-70b-versatile"
-            },
+            ModelId: DefaultModelId(role),
             Temperature: role switch
             {
                 "triage" => 0.1,
@@ -168,7 +206,8 @@ public class AgentFactory
                 "security" => 2000,
                 "logic" => 3000,
                 "performance" => 2000,
-                "eval" => 1500,
+                // Reasoning models spend output tokens thinking before they answer; 1500 starved the judge on batches of 8.
+                "eval" => 4000,
                 "modernization" => 3000,
                 "synthesis" => 4000,
                 "documentation" => 8000,

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Text.Json;
 using ModelContextProtocol.Server;
@@ -22,7 +23,17 @@ public class CodeReviewMcpTools
     // DocumentationAgent.GenerateDocumentationAsync only read the already-materialized
     // PipelineContext/AgentResult, never touch disk, so a cache hit after the originating
     // temp dir has already been cleaned up is fine.
-    private static readonly Dictionary<string, ReviewOutput> _pipelineCache = new();
+    // Shared by every request on the HTTP transport, so it must be thread-safe, and bounded so a long-lived server
+    // does not keep every repo it has ever reviewed in memory.
+    private static readonly ConcurrentDictionary<string, ReviewOutput> _pipelineCache = new();
+    private const int MaxCachedReviews = 32;
+
+    private static void CacheReview(string key, ReviewOutput output)
+    {
+        if (_pipelineCache.Count >= MaxCachedReviews && !_pipelineCache.ContainsKey(key))
+            _pipelineCache.Clear();
+        _pipelineCache[key] = output;
+    }
     private const string ReportFileName = ".codereview/last_report.md";
 
     public CodeReviewMcpTools(CodeReviewPipeline pipeline, AgentFactory agentFactory, IRepositorySourceResolver resolver, IGitHubIssueService issues)
@@ -74,7 +85,7 @@ public class CodeReviewMcpTools
 
         var output = await _pipeline.RunReviewAsync(localPath, commit_hash, string.IsNullOrWhiteSpace(base_commit) ? null : base_commit, issueContext);
 
-        _pipelineCache[repo_path] = output;
+        CacheReview(repo_path, output);
 
         var modernizationAgent = _agentFactory.CreateModernizationQuickAgent();
         var modernizationResult = await modernizationAgent.AnalyzeAsync(output.Context);
@@ -109,7 +120,7 @@ public class CodeReviewMcpTools
         {
             await using var resolved = await _resolver.ResolveAsync(repo_path);
             output = await _pipeline.RunReviewAsync(resolved.Path, "HEAD", "HEAD~1");
-            _pipelineCache[repo_path] = output;
+            CacheReview(repo_path, output);
         }
 
         var onboardingAgent = _agentFactory.CreateOnboardingAgent();
@@ -136,7 +147,7 @@ public class CodeReviewMcpTools
         {
             await using var resolved = await _resolver.ResolveAsync(repo_path);
             output = await _pipeline.RunReviewAsync(resolved.Path, commit_hash, string.IsNullOrWhiteSpace(base_commit) ? null : base_commit);
-            _pipelineCache[repo_path] = output;
+            CacheReview(repo_path, output);
             sourceForFileName = resolved.Path;
         }
 

@@ -15,11 +15,11 @@ public static class ReportFormatter
     public static string FormatReport(ReviewOutput output)
     {
         var sb = new StringBuilder();
-        // Findings the self-evaluation stage flagged low-confidence stay out of the headline count,
-        // health score and severity sections; they get their own section at the end.
+        // Findings a verification stage cast doubt on (low self-evaluation score, or quoted code that is not in the
+        // commit) stay out of the headline count, health score and severity sections; they get their own section.
         var allFindings = output.Result.Findings ?? new List<Finding>();
-        var findings = allFindings.Where(f => f.Evaluation?.LowConfidence != true).ToList();
-        var lowConfidence = allFindings.Where(f => f.Evaluation?.LowConfidence == true).ToList();
+        var findings = allFindings.Where(f => !f.IsFlagged()).ToList();
+        var lowConfidence = allFindings.Where(f => f.IsFlagged()).ToList();
 
         sb.AppendLine("## Code Review Report");
         sb.AppendLine();
@@ -32,6 +32,14 @@ public static class ReportFormatter
         if (lowConfidence.Count > 0)
             sb.AppendLine($"**Low-confidence findings:** {lowConfidence.Count} (separate section below)");
         sb.AppendLine();
+
+        if (output.Context.Warnings is { Count: > 0 } warnings)
+        {
+            sb.AppendLine("> ⚠️ **Incomplete review:** part of the pipeline failed, so findings may be missing or unscored.");
+            foreach (var warning in warnings)
+                sb.AppendLine($"> - {warning}");
+            sb.AppendLine();
+        }
 
         // Health score
         var critCount = findings?.Count(f => f.Severity == Severity.Critical) ?? 0;
@@ -170,9 +178,10 @@ public static class ReportFormatter
             sb.AppendLine("## Low-Confidence Findings");
             sb.AppendLine();
             var threshold = output.Context.EvaluationSummary?.Threshold;
-            sb.AppendLine(threshold is { } t
-                ? $"_Self-evaluation scored these below {t}/{FindingEvaluation.MaxTotal}. They may be off-topic, mis-rated or hard to act on — verify before acting. They are excluded from the health score above._"
-                : "_Self-evaluation flagged these as low-confidence. They may be off-topic, mis-rated or hard to act on — verify before acting. They are excluded from the health score above._");
+            var reasons = threshold is { } t
+                ? $"the self-evaluation judge scored them below {t}/{FindingEvaluation.MaxTotal}, or the code they quote could not be found in the commit"
+                : "the self-evaluation judge flagged them, or the code they quote could not be found in the commit";
+            sb.AppendLine($"_Flagged because {reasons}. They may be off-topic, mis-rated, hallucinated or hard to act on — verify before acting. They are excluded from the health score above._");
             sb.AppendLine();
             foreach (var finding in lowConfidence)
             {
@@ -200,6 +209,8 @@ public static class ReportFormatter
             sb.AppendLine($"- **Quick fix:** `{finding.QuickFix}`");
         }
         sb.AppendLine($"- **Confidence:** {confidenceEmoji} {finding.Confidence:P0}");
+        if (finding.Grounded == false)
+            sb.AppendLine("- **⚠️ Unverified:** the code this finding quotes was not found in the file at this commit.");
         if (finding.Evaluation is { } eval)
         {
             sb.AppendLine($"- **Self-evaluation:** relevance {eval.Relevance}/{FindingEvaluation.MaxScore} · severity accuracy {eval.SeverityAccuracy}/{FindingEvaluation.MaxScore} · actionability {eval.Actionability}/{FindingEvaluation.MaxScore} — **{eval.Total}/{FindingEvaluation.MaxTotal}**{(eval.LowConfidence ? " ⚠️ low confidence" : "")}");

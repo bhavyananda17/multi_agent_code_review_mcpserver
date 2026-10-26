@@ -39,7 +39,10 @@ public enum FindingCategory
     MissingModernLanguageFeatures,
     OutdatedDependencies,
     ArchitectureDebt,
-    MissingTests
+    MissingTests,
+
+    /// <summary>A category the model invented that we don't recognise (kept distinct, not folded into Complexity).</summary>
+    Other
 }
 
 public record Finding(
@@ -59,7 +62,8 @@ public record Finding(
     Dictionary<string, object>? ModernizationContext = null,
     List<string>? References = null,
     List<string>? Agents = null,
-    FindingEvaluation? Evaluation = null
+    FindingEvaluation? Evaluation = null,
+    bool? Grounded = null
 );
 
 public record FixExample(

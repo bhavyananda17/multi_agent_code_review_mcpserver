@@ -62,7 +62,7 @@ public class FindingCategoryConverter : JsonConverter<FindingCategory>
     {
         var value = reader.GetString();
         if (string.IsNullOrEmpty(value))
-            return FindingCategory.Complexity;
+            return FindingCategory.Other;
 
         if (_mapping.TryGetValue(value.Replace(" ", "_").ToLowerInvariant(), out var category))
             return category;
@@ -70,7 +70,8 @@ public class FindingCategoryConverter : JsonConverter<FindingCategory>
         if (Enum.TryParse<FindingCategory>(value, true, out var parsed))
             return parsed;
 
-        return FindingCategory.Complexity;
+        // Unrecognised category: say so, rather than silently counting it as Complexity.
+        return FindingCategory.Other;
     }
 
     public override void Write(Utf8JsonWriter writer, FindingCategory value, JsonSerializerOptions options)

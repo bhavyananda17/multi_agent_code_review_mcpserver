@@ -49,6 +49,7 @@ public static class ServiceCollectionExtensions
         });
 
         services.AddTransient<FilterStage>();
+        services.AddTransient<GroundingStage>();
         services.AddTransient<EvaluationStage>();
         services.AddTransient<IBenchmarkRepoProvider, GitRepoProvider>();
         services.AddTransient<BenchmarkRunner>();
@@ -76,6 +77,10 @@ public static class ServiceCollectionExtensions
         options.BaseUrl = config["BASE_URL"]
             ?? "https://api.groq.com/openai";
 
+        if (int.TryParse(config["AGENT_TIMEOUT_SECONDS"], out var agentTimeout) && agentTimeout > 0)
+            options.Pipeline.AgentTimeoutSeconds = agentTimeout;
+        if (bool.TryParse(config["GROUNDING_ENABLED"], out var grounding))
+            options.Grounding.Enabled = grounding;
         if (bool.TryParse(config["STATIC_ANALYSIS"], out var staticAnalysis))
             options.Filtering.StaticAnalysis = staticAnalysis;
 
@@ -131,6 +136,6 @@ public static class ServiceCollectionExtensions
     {
         var key = $"MODEL_{role.ToUpper()}_TOKENS";
         return int.TryParse(config[key], out var tokens) ? tokens :
-            role switch { "triage" => 500, "eval" => 1500, "security" => 2000, "logic" => 3000, "performance" => 2000, "modernization" => 3000, "synthesis" => 4000, "documentation" => 4000, "onboarding" => 3000, _ => 2000 };
+            role switch { "triage" => 500, "eval" => 4000, "security" => 2000, "logic" => 3000, "performance" => 2000, "modernization" => 3000, "synthesis" => 4000, "documentation" => 4000, "onboarding" => 3000, _ => 2000 };
     }
 }

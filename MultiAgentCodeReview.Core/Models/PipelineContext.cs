@@ -12,7 +12,9 @@ public record PipelineContext(
     Dictionary<string, string>? Metadata = null,
     IssueContext? Issue = null,
     EvaluationSummary? EvaluationSummary = null,
-    CodeAnalysisReport? CodeAnalysis = null
+    CodeAnalysisReport? CodeAnalysis = null,
+    List<string>? Warnings = null,
+    TokenUsage? TokenUsage = null
 );
 
 public record ChangedFile(

@@ -64,7 +64,7 @@ public class DocumentationAgent : MultiAgentCodeReview.Core.Interfaces.IDocument
             sb.AppendLine();
             sb.AppendLine("Key findings:");
             // Findings the self-evaluation flagged as low-confidence don't belong in generated docs.
-            foreach (var finding in synthesisResult.Findings.Where(f => f.Evaluation?.LowConfidence != true).Take(10))
+            foreach (var finding in synthesisResult.Findings.Where(f => !f.IsFlagged()).Take(10))
             {
                 sb.AppendLine($"  - [{finding.Severity}] {finding.Category}: {finding.Description}");
             }

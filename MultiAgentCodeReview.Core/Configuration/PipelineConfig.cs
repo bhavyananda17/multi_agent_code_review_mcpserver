@@ -23,6 +23,13 @@ public class PipelineConfig
     public OutputConfig Output { get; set; } = new();
     public GitHubConfig GitHub { get; set; } = new();
     public EvaluationConfig Evaluation { get; set; } = new();
+    public GroundingConfig Grounding { get; set; } = new();
+}
+
+public class GroundingConfig
+{
+    /// <summary>Verifies that the code each finding quotes exists in the commit (deterministic, no LLM call).</summary>
+    public bool Enabled { get; set; } = true;
 }
 
 public class EvaluationConfig
@@ -53,6 +60,15 @@ public class StageConfig
 {
     public List<string> Stages { get; set; } = ["filter", "triage", "specialists", "synthesis", "documentation"];
     public int TimeoutSeconds { get; set; } = 300;
+
+    /// <summary>Per-attempt time limit for one agent (and the judge); the HTTP client times out at 80% of this.</summary>
+    public int AgentTimeoutSeconds { get; set; } = 180;
+
+    /// <summary>Pause before retrying an agent that timed out.</summary>
+    public int TimeoutRetryDelaySeconds { get; set; } = 5;
+
+    /// <summary>Base pause before retrying a transient error (429, 502/503/504, "over capacity"); multiplied by the attempt number.</summary>
+    public int TransientRetryDelaySeconds { get; set; } = 15;
     public int MaxConcurrentAgents { get; set; } = 4;
 }
 

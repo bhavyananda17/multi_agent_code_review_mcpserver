@@ -18,6 +18,7 @@ namespace MultiAgentCodeReview.Orchestration.Pipeline;
 public class EvaluationStage
 {
     private readonly AgentFactory _agentFactory;
+    private readonly PipelineConfig _pipelineConfig;
     private readonly EvaluationConfig _config;
     private readonly ILogger<EvaluationStage>? _logger;
 
@@ -27,6 +28,7 @@ public class EvaluationStage
         ILogger<EvaluationStage>? logger = null)
     {
         _agentFactory = agentFactory;
+        _pipelineConfig = config.Value;
         _config = config.Value.Evaluation;
         _logger = logger;
     }
@@ -92,7 +94,16 @@ public class EvaluationStage
             "Self-evaluation done in {Seconds:F1}s: {Scored} scored, {Unscored} unscored, {Low} low-confidence (< {Threshold}/{Max})",
             sw.Elapsed.TotalSeconds, scored, unscored, lowConfidence, threshold, FindingEvaluation.MaxTotal);
 
-        var summary = new EvaluationSummary(threshold, scored, unscored, lowConfidence, _config.ExcludeLowConfidence);
+        // LLM judges tend to favour output from their own model/family, so say which kind of judge this was.
+        var judge = AgentFactory.EffectiveJudgeModelId(_pipelineConfig);
+        var generators = AgentFactory.GeneratorModelIds(_pipelineConfig);
+        var sameModel = generators.Contains(judge, StringComparer.OrdinalIgnoreCase);
+        var sameFamily = generators.Any(g => AgentFactory.ModelFamily(g) == AgentFactory.ModelFamily(judge));
+        if (sameFamily)
+            _logger?.LogWarning("Self-evaluation judge {Judge} is {Kind} the models that wrote the findings; its scores may be biased towards them. Set MULTIAGENT_MODEL_EVAL to a model from a different family.",
+                judge, sameModel ? "the same model as one of" : "from the same family as");
+
+        var summary = new EvaluationSummary(threshold, scored, unscored, lowConfidence, _config.ExcludeLowConfidence, judge, sameModel, sameFamily);
         return (new AgentResult(kept, AppendNote(result.Summary, summary, findings.Count)), summary);
     }
 
@@ -106,7 +117,7 @@ public class EvaluationStage
         {
             try
             {
-                using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
+                using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(_pipelineConfig.Pipeline.AgentTimeoutSeconds));
                 using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
                 var scores = await evaluator.EvaluateAsync(context, batch, linkedCts.Token);
 
@@ -120,11 +131,13 @@ public class EvaluationStage
             {
                 throw;
             }
-            catch (Exception ex) when (attempt < 2 && (ex is OperationCanceledException || CodeReviewPipeline.IsRateLimit(ex)))
+            catch (Exception ex) when (attempt < 2 && (ex is OperationCanceledException || CodeReviewPipeline.IsTransient(ex)))
             {
-                var delay = ex is OperationCanceledException ? 5000 : (attempt + 1) * 15000;
+                var delay = ex is OperationCanceledException
+                    ? TimeSpan.FromSeconds(_pipelineConfig.Pipeline.TimeoutRetryDelaySeconds)
+                    : TimeSpan.FromSeconds((attempt + 1) * _pipelineConfig.Pipeline.TransientRetryDelaySeconds);
                 _logger?.LogWarning("Evaluator attempt {Attempt} failed ({Reason}), retrying in {Delay}s",
-                    attempt + 1, ex is OperationCanceledException ? "timeout" : "rate limit", delay / 1000);
+                    attempt + 1, ex is OperationCanceledException ? "timeout" : "transient error", delay.TotalSeconds);
                 await Task.Delay(delay, cancellationToken);
             }
             catch (Exception ex)
@@ -154,6 +167,12 @@ public class EvaluationStage
             if (s.Unscored > 0)
                 note += $" {s.Unscored} could not be scored and are reported as-is.";
         }
+
+        note += s.JudgeSameModelAsGenerators
+            ? $" Judge: {s.JudgeModel}, the same model that wrote these findings (same-model judges tend to favour their own output; set MULTIAGENT_MODEL_EVAL to a different model family for an independent judge)."
+            : s.JudgeSameFamilyAsGenerators
+                ? $" Judge: {s.JudgeModel}, from the same model family as a generator (possible self-preference; a different family is more independent)."
+                : $" Judge: {s.JudgeModel} (a different model family from the generators).";
 
         return string.IsNullOrWhiteSpace(summary) ? note : $"{summary} {note}";
     }

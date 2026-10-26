@@ -271,31 +271,81 @@ public abstract class BaseSpecialistAgent : MultiAgentCodeReview.Core.Interfaces
         return sb.ToString();
     }
 
-    protected static (string content, Dictionary<string, HashSet<int>> validLines) BuildDiffContent(PipelineContext context, int maxChars = 4000)
+    /// <summary>Characters of diff shown to each specialist (about 1.5k tokens), shared across all files.</summary>
+    public const int DiffCharBudget = 6000;
+
+    private const int MinCharsPerFile = 500;
+    private const int MinCharsToStartAFile = 200;
+    private const int MaxLineChars = 1500;
+
+    /// <summary>
+    /// The diff as the specialists see it, with [Line N] markers. The character budget is shared fairly: each file
+    /// gets an equal share of what is left (unused share rolls on to later files), so a big first file can no longer
+    /// hide every other file. Only WHOLE lines are ever shown, because a line cut mid-word looks like a typo
+    /// ("is not nul") and the model will report it as one. Whatever is left out is named explicitly.
+    /// A diff that fits the budget renders exactly as it always did.
+    /// </summary>
+    protected static (string content, Dictionary<string, HashSet<int>> validLines) BuildDiffContent(PipelineContext context, int maxChars = DiffCharBudget)
     {
         if (context.Diff == null) return ("", new Dictionary<string, HashSet<int>>());
         var sb = new System.Text.StringBuilder();
         sb.AppendLine("Code Changes:");
-        int totalChars = 0;
-        foreach (var fileDiff in context.Diff.Files)
+
+        var files = context.Diff.Files;
+        var remaining = maxChars;
+
+        for (var i = 0; i < files.Count; i++)
         {
+            if (remaining < MinCharsToStartAFile)
+            {
+                var skipped = files.Skip(i).Select(f => f.Path).ToList();
+                sb.AppendLine($"... [{skipped.Count} more file(s) not shown: {string.Join(", ", skipped.Take(8))}{(skipped.Count > 8 ? $", and {skipped.Count - 8} more" : "")}]");
+                break;
+            }
+
+            var fileDiff = files[i];
+            var budget = Math.Min(remaining, Math.Max(remaining / (files.Count - i), MinCharsPerFile));
             sb.AppendLine($"--- {fileDiff.Path} ---");
+
+            var used = 0;
+            var hiddenLines = 0;
+            var full = true;
             foreach (var hunk in fileDiff.Hunks)
             {
                 var numbered = InjectLineNumbers(hunk);
-                if (totalChars + numbered.Length > maxChars)
+                // A hunk is shown as-is only if it fits AND has no absurdly long line (a minified line would eat the window).
+                if (full && used + numbered.Length <= budget && !numbered.Split('\n').Any(l => l.Length > MaxLineChars))
                 {
-                    var remaining = maxChars - totalChars;
-                    if (remaining > 100)
-                        sb.AppendLine(numbered.Substring(0, remaining) + "\n... [truncated]");
-                    sb.AppendLine($"... [{context.Diff.Files.Count - context.Diff.Files.IndexOf(fileDiff)} more files truncated]");
-                    return (sb.ToString(), ExtractValidLineNumbers(sb.ToString()));
+                    sb.AppendLine(numbered);
+                    used += numbered.Length;
+                    continue;
                 }
-                sb.AppendLine(numbered);
-                totalChars += numbered.Length;
+
+                // Doesn't fit: show whole lines until the share runs out, then count what is left.
+                foreach (var raw in numbered.TrimEnd('\n').Split('\n'))
+                {
+                    var line = raw.TrimEnd('\r');
+                    if (line.Length > MaxLineChars)
+                        line = line[..MaxLineChars] + " ...[line truncated]";
+                    if (full && used + line.Length + 1 <= budget)
+                    {
+                        sb.AppendLine(line);
+                        used += line.Length + 1;
+                    }
+                    else
+                    {
+                        full = false;
+                        hiddenLines++;
+                    }
+                }
             }
+
+            if (hiddenLines > 0)
+                sb.AppendLine($"... [{hiddenLines} more line(s) of this file not shown]");
             sb.AppendLine();
+            remaining -= used;
         }
+
         var diffContent = sb.ToString();
         return (diffContent, ExtractValidLineNumbers(diffContent));
     }
