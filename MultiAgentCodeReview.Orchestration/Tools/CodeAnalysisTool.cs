@@ -74,7 +74,7 @@ public class CodeAnalysisTool : ICodeAnalysisTool
         var fullPath = ResolvePath(filePath, basePath);
         var syntaxTree = await GetSyntaxTreeAsync(fullPath);
         var root = await syntaxTree.GetRootAsync();
-        var semanticModel = (await GetCompilationAsync(fullPath)).GetSemanticModel(syntaxTree);
+        var semanticModel = GetCompilation(syntaxTree).GetSemanticModel(syntaxTree);
         
         var callers = new List<CallSite>();
         
@@ -107,8 +107,7 @@ public class CodeAnalysisTool : ICodeAnalysisTool
     {
         var fullPath = ResolvePath(filePath, basePath);
         var syntaxTree = await GetSyntaxTreeAsync(fullPath);
-        var compilation = await GetCompilationAsync(fullPath);
-        var semanticModel = compilation.GetSemanticModel(syntaxTree);
+        var semanticModel = GetCompilation(syntaxTree).GetSemanticModel(syntaxTree);
         var smells = new List<CodeSmell>();
 
         // Long methods
@@ -228,9 +227,12 @@ public class CodeAnalysisTool : ICodeAnalysisTool
         return CSharpSyntaxTree.ParseText(text);
     }
 
-    private async Task<CSharpCompilation> GetCompilationAsync(string filePath)
+    // Takes the tree the caller already holds: a compilation built from a freshly re-parsed copy of the file
+    // does not contain the caller's tree, and GetSemanticModel(callerTree) then throws ArgumentException
+    // ("SyntaxTree is not part of the compilation") -- which made FindCallersAsync and
+    // DetectCodeSmellsAsync fail on every file.
+    private CSharpCompilation GetCompilation(SyntaxTree syntaxTree)
     {
-        var syntaxTree = await GetSyntaxTreeAsync(filePath);
         return CSharpCompilation.Create("temp")
             .AddSyntaxTrees(syntaxTree)
             .AddReferences(MetadataReference.CreateFromFile(typeof(object).Assembly.Location))
