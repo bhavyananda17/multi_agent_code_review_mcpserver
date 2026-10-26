@@ -22,4 +22,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="MultiAgentCodeReview.Tests" />
+  </ItemGroup>
+
 </Project>

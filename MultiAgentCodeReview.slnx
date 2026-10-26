@@ -5,4 +5,5 @@
   <Project Path="MultiAgentCodeReview.Host/MultiAgentCodeReview.Host.csproj" />
   <Project Path="MultiAgentCodeReview.McpServer/MultiAgentCodeReview.McpServer.csproj" />
   <Project Path="MultiAgentCodeReview.Orchestration/MultiAgentCodeReview.Orchestration.csproj" />
+  <Project Path="MultiAgentCodeReview.Tests/MultiAgentCodeReview.Tests.csproj" />
 </Solution>

@@ -23,10 +23,13 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      # CI gate: no test project exists in this repo yet, so a clean build
-      # is the bar a change must clear before it's allowed to deploy.
+      # CI gate: the build AND the unit/integration tests must pass before anything is deployed.
+      # The tests need git (present on the runner) but no network and no API keys (the LLM is faked).
       - name: Restore & build
         run: dotnet build MultiAgentCodeReview.slnx -c Release
+
+      - name: Test
+        run: dotnet test MultiAgentCodeReview.slnx -c Release --no-build --logger "console;verbosity=normal"
 
       - name: Trigger Render deploy
         id: deploy
