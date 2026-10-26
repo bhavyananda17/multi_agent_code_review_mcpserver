@@ -1,0 +1,994 @@
+{
+  "generatedAtUtc": "2026-10-26T10:39:28.428837Z",
+  "interrupted": false,
+  "settings": {
+    "similarityThreshold": 0.25,
+    "matchMode": "any-match",
+    "includeLowConfidence": false,
+    "similarity": "Dice coefficient on stop-word-filtered, stemmed, camelCase-split tokens; >= 2 shared tokens required",
+    "evaluationEnabled": true,
+    "evaluationThreshold": 5,
+    "evaluationExcludesLowConfidence": false,
+    "modelOverrides": {
+      "triage": "openai/gpt-oss-20b",
+      "security": "openai/gpt-oss-120b",
+      "logic": "openai/gpt-oss-120b",
+      "performance": "openai/gpt-oss-120b",
+      "modernization": "openai/gpt-oss-120b",
+      "synthesis": "openai/gpt-oss-120b",
+      "documentation": "openai/gpt-oss-20b",
+      "onboarding": "openai/gpt-oss-20b"
+    }
+  },
+  "aggregate": {
+    "rows": 12,
+    "succeeded": 12,
+    "failed": 0,
+    "macro": {
+      "precision": 0.09629629629629628,
+      "recall": 0.20833333333333334,
+      "f1": 0.1191919191919192
+    },
+    "micro": {
+      "predicted": 64,
+      "groundTruth": 28,
+      "matchedPredictions": 5,
+      "matchedGroundTruth": 6,
+      "precision": 0.078125,
+      "recall": 0.21428571428571427,
+      "f1": 0.11450381679389313
+    }
+  },
+  "results": [
+    {
+      "row": 1,
+      "repoUrl": "https://github.com/dotnet/extensions",
+      "commitSha": "2e537166e4231e50cceb66832b9dfd1382e24d1b",
+      "status": "ok",
+      "pipelineSeconds": 52.5,
+      "predictedCount": 7,
+      "groundTruthCount": 3,
+      "excludedLowConfidence": 0,
+      "matchedPredictions": 0,
+      "matchedGroundTruth": 0,
+      "precision": 0,
+      "recall": 0,
+      "f1": 0,
+      "pipelineSummary": "Reviewed 5 files. Found 7 findings across 2 files: 1 critical, 2 high, 3 medium, 1 low. Self-evaluation was enabled but no findings could be scored; all findings are reported as-is.",
+      "matches": [],
+      "unmatchedPredictions": [
+        {
+          "severity": "Low",
+          "category": "Complexity",
+          "file": "src/Libraries/Microsoft.Extensions.AI.OpenAI/OpenAISpeechToTextClient.cs",
+          "line": 209,
+          "description": "The code rewinds the stream position by subtracting the number of bytes read without ensuring the resulting position is non‑negative, which can throw an exception and cause a denial‑of‑service for crafted streams.",
+          "recommendation": "Reset the stream position using Seek(0, SeekOrigin.Begin) or ensure the subtraction does not produce a negative value.",
+          "lowConfidence": false
+        },
+        {
+          "severity": "Medium",
+          "category": "InputValidation",
+          "file": "src/Libraries/Microsoft.Extensions.AI.OpenAI/OpenAISpeechToTextClient.cs",
+          "line": 190,
+          "description": "Filename derived from FileStream.Name is used directly in multipart request headers without sanitization, allowing header injection if an attacker controls the file name (e.g., includes CRLF characters).",
+          "recommendation": "Sanitize the extracted filename to remove CR, LF, and other header‑control characters before using it in multipart headers.",
+          "lowConfidence": false
+        },
+        {
+          "severity": "Medium",
+          "category": "CodeSmell",
+          "file": "src/Libraries/Microsoft.Extensions.AI.OpenAI/OpenAISpeechToTextClient.cs",
+          "line": 186,
+          "description": "Magic number 12 is used for format detection byte count; this should be a named constant for clarity.",
+          "recommendation": "Replace the literal 12 with a well‑named constant (e.g., FormatDetectionByteCount) and document its purpose.",
+          "lowConfidence": false
+        },
+        {
+          "severity": "Medium",
+          "category": "Complexity",
+          "file": "src/Libraries/Microsoft.Extensions.AI.OpenAI/OpenAISpeechToTextClient.cs",
+          "line": 194,
+          "description": "ResolveFilename only attempts format detection when the stream is seekable and positioned at 0; if the stream is seekable but not at position 0, the detection is skipped and a default filename is used, potentially losing useful extension information.",
+          "recommendation": "Consider rewinding the stream to the start before detection or providing an overload that accepts a pre‑positioned stream.",
+          "lowConfidence": false
+        },
+        {
+          "severity": "High",
+          "category": "Complexity",
+          "file": "src/Libraries/Microsoft.Extensions.AI.OpenAI/OpenAISpeechToTextClient.cs",
+          "line": 217,
+          "description": "DetectAudioExtension has cyclomatic complexity of 13, exceeding the target of <10, making it hard to understand and maintain.",
+          "recommendation": "Refactor DetectAudioExtension by extracting each format check into separate private methods or using a lookup table.",
+          "lowConfidence": false
+        },
+        {
+          "severity": "High",
+          "category": "Complexity",
+          "file": "test/Libraries/Microsoft.Extensions.AI.Integration.Tests/VerbatimMultiPartHttpHandler.cs",
+          "line": 46,
+          "description": "SendAsync method has cyclomatic complexity of 13, which hampers readability and testability.",
+          "recommendation": "Split SendAsync into smaller methods (e.g., BuildHeaders, WriteContent, ProcessResponse) to reduce complexity.",
+          "lowConfidence": false
+        },
+        {
+          "severity": "Critical",
+          "category": "Complexity",
+          "file": "src/Libraries/Microsoft.Extensions.AI.OpenAI/OpenAISpeechToTextClient.cs",
+          "line": 184,
+          "description": "ResolveFilename may produce a filename with an empty or unknown extension when DetectAudioExtension returns an empty string, resulting in a malformed multipart request header that can cause server rejection.",
+          "recommendation": "Ensure DetectAudioExtension always returns a valid extension (e.g., fallback to \"mp3\") and guard against empty results before constructing the filename.",
+          "lowConfidence": false
+        }
+      ],
+      "unmatchedGroundTruth": [
+        "Can you use `Stream.ReadExactly` here, or does that prevent you from being able to reliably rewind after reading in an unsuccessful read-exactly scenario? Maybe `Stream.ReadAtLeast` might be appropriate though, with `throwOnEndOfStream` set to `false`? But then again, maybe just having this loop here is the cleanest option, as you're not _working against_ what those convenience APIs are trying to",
+        "Are we sure the stream is positioned at the beginning to ensure we are reading the header?",
+        "what happen if we get unrecognized format?"
+      ]
+    },
+    {
+      "row": 2,
+      "repoUrl": "https://github.com/dotnet/BenchmarkDotNet",
+      "commitSha": "5a5453850bcc88e1c609a701502f3993ec0cbb8b",
+      "status": "ok",
+      "pipelineSeconds": 65.64,
+      "predictedCount": 9,
+      "groundTruthCount": 3,
+      "excludedLowConfidence": 0,
+      "matchedPredictions": 2,
+      "matchedGroundTruth": 3,
+      "precision": 0.2222222222222222,
+      "recall": 1,
+      "f1": 0.3636363636363636,
+      "pipelineSummary": "Reviewed 4 files. Found 9 findings across 2 files: 0 critical, 4 high, 3 medium, 2 low. 3 finding(s) could not be matched to a specific line. Self-evaluation scored 9/9 findings (threshold 5/9); none flagged low-confidence.",
+      "matches": [
+        {
+          "finding": {
+            "severity": "Low",
+            "category": "Complexity",
+            "file": "src/BenchmarkDotNet/ConsoleArguments/ConfigParser.cs",
+            "line": 354,
+            "description": "The duplicate‑path detection enumerates `options.IlcPackages` twice: once for `GroupBy` and again for `FirstOrDefault`, leading to extra allocations.",
+            "recommendation": "Materialize the collection once (e.g., `var packages = options.IlcPackages.ToList();`) and reuse it for both operations.",
+            "lowConfidence": false,
+            "selfEvalTotal": 8
+          },
+          "groundTruth": "Nit: `SingleOrDefault()` is only safe because of the `Count > 1` guard in `CreateJobsForGivenRuntime`, and `Runtime.Parse` runs twice. Having this arm iterate `options.IlcPackages.DefaultIfEmpty()` (with `CreateJobForGivenRuntime` returning `IEnumerable<Job>`) would leave one NativeAOT path and drop the wrapper.",
+          "similarity": 0.261
+        },
+        {
+          "finding": {
+            "severity": "High",
+            "category": "Complexity",
+            "file": "src/BenchmarkDotNet/ConsoleArguments/ConfigParser.cs",
+            "line": 339,
+            "description": "When multiple IlcPackages are supplied, the code only checks for a NativeAOT runtime but does not verify that at least one runtime is actually provided, potentially leading to later failures.",
+            "recommendation": "Add an explicit check that options.Runtimes is not empty before proceeding with multiple IlcPackages.",
+            "lowConfidence": false,
+            "selfEvalTotal": 8
+          },
+          "groundTruth": "This only checks existence. Two more cases should be rejected: - Multiple paths with no NativeAOT runtime (`--ilcPackages a b -r net10.0`, or no `-r`): parses fine and silently drops both paths. - Duplicate paths (`--ilcPackages X X`): produces `-1` and `-2` jobs with value-equal toolchains, reported as a before/after comparison.",
+          "similarity": 0.302
+        },
+        {
+          "finding": {
+            "severity": "High",
+            "category": "Complexity",
+            "file": "src/BenchmarkDotNet/ConsoleArguments/ConfigParser.cs",
+            "line": 339,
+            "description": "When multiple IlcPackages are supplied, the code only checks for a NativeAOT runtime but does not verify that at least one runtime is actually provided, potentially leading to later failures.",
+            "recommendation": "Add an explicit check that options.Runtimes is not empty before proceeding with multiple IlcPackages.",
+            "lowConfidence": false,
+            "selfEvalTotal": 8
+          },
+          "groundTruth": "Nit: `SingleOrDefault()` is only safe because of the `Count > 1` guard in `CreateJobsForGivenRuntime`, and `Runtime.Parse` runs twice. Having this arm iterate `options.IlcPackages.DefaultIfEmpty()` (with `CreateJobForGivenRuntime` returning `IEnumerable<Job>`) would leave one NativeAOT path and drop the wrapper.",
+          "similarity": 0.302
+        },
+        {
+          "finding": {
+            "severity": "High",
+            "category": "Complexity",
+            "file": "src/BenchmarkDotNet/ConsoleArguments/ConfigParser.cs",
+            "line": 339,
+            "description": "When multiple IlcPackages are supplied, the code only checks for a NativeAOT runtime but does not verify that at least one runtime is actually provided, potentially leading to later failures.",
+            "recommendation": "Add an explicit check that options.Runtimes is not empty before proceeding with multiple IlcPackages.",
+            "lowConfidence": false,
+            "selfEvalTotal": 8
+          },
+          "groundTruth": "Missing coverage: `--packages` with multiple paths, multiple paths with a non-NativeAOT runtime, and cross-drive / case-differing paths in the display-name theory.",
+          "similarity": 0.294
+        }
+      ],
+      "unmatchedPredictions": [
+        {
+          "severity": "Low",
+          "category": "Complexity",
+          "file": "src/BenchmarkDotNet/ConsoleArguments/ConfigParser.cs",
+          "line": 335,
+          "description": "Interpolated string inside the `foreach` loop creates a new string for each `ilcPackages` entry, causing unnecessary allocations when many paths are supplied.",
+          "recommendation": "Use `StringBuilder` or pre‑format the message outside the loop if possible.",
+          "lowConfidence": false,
+          "selfEvalTotal": 9
+        },
+        {
+          "severity": "Medium",
+          "category": "Complexity",
+          "file": "src/BenchmarkDotNet/ConsoleArguments/ConfigParser.cs",
+          "line": 0,
+          "description": "Method `Validate` has cyclomatic complexity 30 (threshold 10) and contains many nested conditionals, which can degrade performance and maintainability.",
+          "recommendation": "Refactor `Validate` into smaller, focused methods and short‑circuit early returns to reduce branching.",
+          "lowConfidence": false,
+          "selfEvalTotal": 6
+        },
+        {
+          "severity": "Medium",
+          "category": "CodeSmell",
+          "file": "src/BenchmarkDotNet/ConsoleArguments/CommandLineOptions.cs",
+          "line": 116,
+          "description": "CommandLineOptions class now contains 76 public members, violating the Single Responsibility Principle and making the class difficult to maintain.",
+          "recommendation": "Group related options into smaller, focused classes or structs and expose them via composition.",
+          "lowConfidence": false,
+          "selfEvalTotal": 7
+        },
+        {
+          "severity": "Medium",
+          "category": "SolidViolation",
+          "file": "src/BenchmarkDotNet/ConsoleArguments/ConfigParser.cs",
+          "line": 0,
+          "description": "ConfigParser handles command‑line parsing, validation, and job creation in a single class, breaching the Single Responsibility Principle.",
+          "recommendation": "Extract validation logic into a dedicated validator class and move job‑creation responsibilities to a separate factory.",
+          "lowConfidence": false,
+          "selfEvalTotal": 7
+        },
+        {
+          "severity": "High",
+          "category": "Complexity",
+          "file": "src/BenchmarkDotNet/ConsoleArguments/ConfigParser.cs",
+          "line": 332,
+          "description": "The foreach loop iterates over options.IlcPackages and calls IsNotNullButDoesNotExist on each element without checking for null, which can cause a NullReferenceException if the list contains a null entry.",
+          "recommendation": "Add a null check before invoking IsNotNullButDoesNotExist for each element.",
+          "lowConfidence": false,
+          "selfEvalTotal": 7
+        },
+        {
+          "severity": "High",
+          "category": "Complexity",
+          "file": "src/BenchmarkDotNet/ConsoleArguments/ConfigParser.cs",
+          "line": 0,
+          "description": "Method Validate has a cyclomatic complexity of 30, far exceeding the recommended maximum of 10, making it hard to understand and maintain.",
+          "recommendation": "Refactor Validate by extracting distinct validation concerns (e.g., IlcPackages validation, runtime validation, restore path checks) into separate private methods.",
+          "lowConfidence": false,
+          "selfEvalTotal": 5
+        },
+        {
+          "severity": "High",
+          "category": "Complexity",
+          "file": "src/BenchmarkDotNet/ConsoleArguments/ConfigParser.cs",
+          "line": 355,
+          "description": "Path.GetFullPath can throw for malformed or inaccessible paths; the current duplicate‑detection logic does not handle such exceptions, which may crash the parser.",
+          "recommendation": "Wrap the GetFullPath call in a try/catch or pre‑validate the path before grouping.",
+          "lowConfidence": false,
+          "selfEvalTotal": 8
+        }
+      ],
+      "unmatchedGroundTruth": []
+    },
+    {
+      "row": 3,
+      "repoUrl": "https://github.com/DapperLib/Dapper",
+      "commitSha": "d56340b8859ca4270ef12efb03f6e48a95745ee6",
+      "status": "ok",
+      "pipelineSeconds": 54.31,
+      "predictedCount": 7,
+      "groundTruthCount": 2,
+      "excludedLowConfidence": 0,
+      "matchedPredictions": 0,
+      "matchedGroundTruth": 0,
+      "precision": 0,
+      "recall": 0,
+      "f1": 0,
+      "pipelineSummary": "Reviewed 4 files. Found 7 findings across 3 files: 1 critical, 2 high, 4 medium, 0 low. 1 finding(s) could not be matched to a specific line. Self-evaluation scored 7/7 findings (threshold 5/9); none flagged low-confidence.",
+      "matches": [],
+      "unmatchedPredictions": [
+        {
+          "severity": "Medium",
+          "category": "Complexity",
+          "file": "Dapper/SqlMapper.Async.cs",
+          "line": 0,
+          "description": "Class `SqlMapper` contains 70 members, violating the Single Responsibility Principle and making the class difficult to maintain.",
+          "recommendation": "Split `SqlMapper` into smaller, focused classes or use partial classes to group related functionality.",
+          "lowConfidence": false,
+          "selfEvalTotal": 6
+        },
+        {
+          "severity": "Medium",
+          "category": "Complexity",
+          "file": "Dapper/SqlMapper.GridReader.Async.cs",
+          "line": 14,
+          "description": "Class `GridReader` has 22 members, exceeding the recommended limit and indicating a potential violation of SRP.",
+          "recommendation": "Extract helper methods or related groups of functionality into separate classes or nested types.",
+          "lowConfidence": false,
+          "selfEvalTotal": 6
+        },
+        {
+          "severity": "Medium",
+          "category": "Complexity",
+          "file": "tests/Dapper.Tests/AsyncTests.cs",
+          "line": 35,
+          "description": "Test class `AsyncTests` contains 58 test members, making the test suite hard to navigate and maintain.",
+          "recommendation": "Organize tests into multiple focused test classes grouped by feature or behavior.",
+          "lowConfidence": false,
+          "selfEvalTotal": 6
+        },
+        {
+          "severity": "Medium",
+          "category": "SqlInjection",
+          "file": "Dapper/SqlMapper.Async.cs",
+          "line": 1251,
+          "description": "The raw SQL command text is accepted and used directly without any validation or enforcement of parameterization, allowing callers to inject malicious SQL if they concatenate user input into the query string.",
+          "recommendation": "Validate that the provided SQL string uses parameter placeholders and discourage direct string concatenation; consider adding a guard that throws if the command text contains suspicious patterns.",
+          "lowConfidence": false,
+          "selfEvalTotal": 7
+        },
+        {
+          "severity": "High",
+          "category": "ResourceLeak",
+          "file": "Dapper/SqlMapper.Async.cs",
+          "line": 1258,
+          "description": "DbDataReader is created and awaited but never disposed if the async enumeration is aborted early, potentially leaking connections and memory.",
+          "recommendation": "Wrap the DbDataReader in a using block and dispose it in a finally after the async enumeration completes.",
+          "lowConfidence": false,
+          "selfEvalTotal": 9
+        },
+        {
+          "severity": "High",
+          "category": "Complexity",
+          "file": "Dapper/SqlMapper.GridReader.Async.cs",
+          "line": 204,
+          "description": "Method `ReadRowAsyncImpl` has cyclomatic complexity of 11, exceeding the recommended maximum of 10, making it hard to understand and test.",
+          "recommendation": "Extract logical branches into separate private methods to reduce complexity.",
+          "lowConfidence": false,
+          "selfEvalTotal": 8
+        },
+        {
+          "severity": "Critical",
+          "category": "ResourceLeak",
+          "file": "Dapper/SqlMapper.Async.cs",
+          "line": 1256,
+          "description": "DbDataReader instance is created but never disposed, causing potential connection and memory leaks when the async iterator completes.",
+          "recommendation": "Dispose the reader with `await using` and ensure it is closed when enumeration ends.",
+          "lowConfidence": false,
+          "selfEvalTotal": 9
+        }
+      ],
+      "unmatchedGroundTruth": [
+        "This `convertToType` variable is not used. I guess it was meant to be used 4 lines below?",
+        "Is there a reason this is using a `DbConnection` and not an `IDbConnection`?"
+      ]
+    },
+    {
+      "row": 4,
+      "repoUrl": "https://github.com/fluentassertions/fluentassertions",
+      "commitSha": "6ea70708c33db3a78aad545a4d940bac038232da",
+      "status": "ok",
+      "pipelineSeconds": 38.49,
+      "predictedCount": 3,
+      "groundTruthCount": 2,
+      "excludedLowConfidence": 0,
+      "matchedPredictions": 1,
+      "matchedGroundTruth": 1,
+      "precision": 0.3333333333333333,
+      "recall": 0.5,
+      "f1": 0.4,
+      "pipelineSummary": "Reviewed 2 files. Found 3 findings across 1 files: 0 critical, 1 high, 1 medium, 1 low. Self-evaluation scored 3/3 findings (threshold 5/9); none flagged low-confidence.",
+      "matches": [
+        {
+          "finding": {
+            "severity": "Medium",
+            "category": "CodeSmell",
+            "file": "Src/FluentAssertions/Specialized/JsonNodeAssertions.cs",
+            "line": 45,
+            "description": "The logic for checking property existence is duplicated in HaveProperty and NotHaveProperty.",
+            "recommendation": "Extract the property‑existence check into a private helper method.",
+            "lowConfidence": false,
+            "selfEvalTotal": 9
+          },
+          "groundTruth": "Double check: Is it only `JsonObject`s that have properties?",
+          "similarity": 0.364
+        }
+      ],
+      "unmatchedPredictions": [
+        {
+          "severity": "Low",
+          "category": "CodeSmell",
+          "file": "Src/FluentAssertions/Specialized/JsonNodeAssertions.cs",
+          "line": 80,
+          "description": "The NotHaveProperty assertion chain calls .BecauseOf(because, becauseArgs) twice, which is redundant.",
+          "recommendation": "Remove the second .BecauseOf call.",
+          "lowConfidence": false,
+          "selfEvalTotal": 9
+        },
+        {
+          "severity": "High",
+          "category": "Complexity",
+          "file": "Src/FluentAssertions/Specialized/JsonNodeAssertions.cs",
+          "line": 55,
+          "description": "When a property exists with an explicit null value, the returned AndWhichConstraint's Which value is null, which can cause NullReferenceException for callers that assume a non‑null JsonNode.",
+          "recommendation": "Return the actual JsonNode retrieved by TryGetPropertyValue (even if null) and document that Which may be null.",
+          "lowConfidence": false,
+          "selfEvalTotal": 9
+        }
+      ],
+      "unmatchedGroundTruth": [
+        "A corner case: If `Subject` is not a `JsonObject`, `NotHaveProperty` passes. I can't recall on the top of my head how we handle this in other `Not` assertions."
+      ]
+    },
+    {
+      "row": 5,
+      "repoUrl": "https://github.com/dotnet/aspire",
+      "commitSha": "45651ce2d1e650c6050283bc22308b1524b891fa",
+      "status": "ok",
+      "pipelineSeconds": 64.42,
+      "predictedCount": 10,
+      "groundTruthCount": 2,
+      "excludedLowConfidence": 0,
+      "matchedPredictions": 1,
+      "matchedGroundTruth": 1,
+      "precision": 0.1,
+      "recall": 0.5,
+      "f1": 0.16666666666666669,
+      "pipelineSummary": "Reviewed 7 files. Found 10 findings across 4 files: 0 critical, 4 high, 5 medium, 1 low. 4 finding(s) could not be matched to a specific line. 1 finding(s) boosted to Critical via cross-agent agreement. Self-evaluation scored 2/10 findings (threshold 5/9); none flagged low-confidence. 8 could not be scored and are reported as-is.",
+      "matches": [
+        {
+          "finding": {
+            "severity": "Medium",
+            "category": "Complexity",
+            "file": "src/Aspire.Dashboard/ServiceClient/SqliteResourceRepository.Storage.cs",
+            "line": 115,
+            "description": "TrimConsoleLogs executes `SELECT COUNT(*) FROM console_logs` on every trim operation, causing a full table scan on a potentially large log table.",
+            "recommendation": "Maintain a cached row count (e.g., via a trigger or a separate counter table) and use it to compute the excess rows without scanning the whole table.",
+            "lowConfidence": false
+          },
+          "groundTruth": "doesn't need full table scanning for count.",
+          "similarity": 0.286
+        }
+      ],
+      "unmatchedPredictions": [
+        {
+          "severity": "Low",
+          "category": "Naming",
+          "file": "src/Aspire.Dashboard/Configuration/DashboardOptions.cs",
+          "line": 246,
+          "description": "XML comment still refers to \"optional limit\" while the property is now required for both viewer and database, causing documentation mismatch.",
+          "recommendation": "Update the XML comment to accurately reflect the new behavior.",
+          "lowConfidence": false
+        },
+        {
+          "severity": "Medium",
+          "category": "Complexity",
+          "file": "src/Aspire.Dashboard/Configuration/DashboardOptions.cs",
+          "line": 253,
+          "description": "[SecurityAgent]: The default maximum console log count was increased from 10,000 to 100,000, allowing an attacker to generate a large volume of logs and potentially exhaust storage or memory resources, leading to denial‑of‑service.\n\n[LogicAgent]: The MaxConsoleLogCount property can be set to a negative value via configuration, which would cause TrimConsoleLogs to delete all rows because the LIMIT expression uses MAX((COUNT) - @MaxConsoleLogCount, 0).",
+          "recommendation": "Enforce a configurable upper bound and implement rate‑limiting on log ingestion.\nAdd validation to ensure MaxConsoleLogCount is non‑negative and enforce a sensible minimum.",
+          "lowConfidence": false
+        },
+        {
+          "severity": "Medium",
+          "category": "Complexity",
+          "file": "src/Aspire.Dashboard/ServiceClient/SqliteResourceRepository.cs",
+          "line": 0,
+          "description": "AddConsoleLogsAsync is 82 lines long (cyclomatic complexity 10), making it hard to reason about performance and increasing the risk of hidden inefficiencies.",
+          "recommendation": "Extract logical sections into smaller private methods (e.g., batch insert, resource lookup, trimming) to improve readability and enable targeted optimizations.",
+          "lowConfidence": false
+        },
+        {
+          "severity": "Medium",
+          "category": "Complexity",
+          "file": "src/Aspire.Dashboard/ServiceClient/SqliteResourceRepository.cs",
+          "line": 0,
+          "description": "SqliteResourceRepository class contains 30 members, exceeding the recommended maximum of 20, indicating a Large Class smell.",
+          "recommendation": "Split responsibilities into smaller, focused classes (e.g., a separate LogTrimmer, EnvironmentInserter, etc.).",
+          "lowConfidence": false
+        },
+        {
+          "severity": "Medium",
+          "category": "Complexity",
+          "file": "src/Aspire.Dashboard/ServiceClient/SqliteResourceRepository.Storage.cs",
+          "line": 105,
+          "description": "TrimConsoleLogs method is tightly coupled to Dapper and raw SQL, making it hard to mock for unit tests.",
+          "recommendation": "Introduce an abstraction (e.g., IConsoleLogPruner) and inject it, allowing the trimming logic to be unit‑tested independently.",
+          "lowConfidence": false
+        },
+        {
+          "severity": "High",
+          "category": "NPlusOneQuery",
+          "file": "src/Aspire.Dashboard/ServiceClient/SqliteResourceRepository.cs",
+          "line": 0,
+          "description": "AddConsoleLogsAsync queries the resources table for each console‑log entry to resolve the resource id, resulting in an N+1 pattern (1 query for the batch + N queries for individual logs).",
+          "recommendation": "Batch the resource look‑ups into a single query or build a dictionary of resource ids before the loop.",
+          "lowConfidence": false
+        },
+        {
+          "severity": "High",
+          "category": "Complexity",
+          "file": "src/Aspire.Dashboard/ServiceClient/SqliteResourceRepository.cs",
+          "line": 0,
+          "description": "Method AddConsoleLogsAsync has cyclomatic complexity of 10, which is at the threshold and makes the method hard to understand and test.",
+          "recommendation": "Refactor the method by extracting distinct logical blocks (validation, trimming, batch insertion, notification) into private helper methods.",
+          "lowConfidence": false
+        },
+        {
+          "severity": "High",
+          "category": "Complexity",
+          "file": "src/Aspire.Dashboard/ServiceClient/RepositoryFactory.cs",
+          "line": 32,
+          "description": "RepositoryFactory now resolves IOptions<DashboardOptions> but SqliteResourceRepository constructor may not handle a null Options instance, risking a NullReference when accessing .Value.",
+          "recommendation": "Guard against null IOptions<DashboardOptions> in the SqliteResourceRepository constructor and fallback to defaults if missing.",
+          "lowConfidence": false,
+          "selfEvalTotal": 8
+        },
+        {
+          "severity": "High",
+          "category": "Complexity",
+          "file": "src/Aspire.Dashboard/Configuration/DashboardOptions.cs",
+          "line": 243,
+          "description": "The PublicUrl property is a plain string without any validation or sanitisation; if it is later used to construct redirects or external links, an attacker could supply a malicious URL and cause an open‑redirect vulnerability.",
+          "recommendation": "Validate that PublicUrl is a well‑formed absolute URI belonging to an allowed domain list before using it for redirects.",
+          "lowConfidence": false,
+          "selfEvalTotal": 7
+        }
+      ],
+      "unmatchedGroundTruth": [
+        "Should we also provide a memory size limit (based on an average expected log size)."
+      ]
+    },
+    {
+      "row": 6,
+      "repoUrl": "https://github.com/ppy/osu",
+      "commitSha": "61e42030e767d4f9293ea4000eb43b4f0a894da0",
+      "status": "ok",
+      "pipelineSeconds": 39.57,
+      "predictedCount": 4,
+      "groundTruthCount": 2,
+      "excludedLowConfidence": 0,
+      "matchedPredictions": 0,
+      "matchedGroundTruth": 0,
+      "precision": 0,
+      "recall": 0,
+      "f1": 0,
+      "pipelineSummary": "Reviewed 8 files. Found 4 findings across 1 files: 0 critical, 2 high, 2 medium, 0 low. 2 finding(s) could not be matched to a specific line. 1 finding(s) boosted to Critical via cross-agent agreement. Self-evaluation scored 4/4 findings (threshold 5/9); none flagged low-confidence.",
+      "matches": [],
+      "unmatchedPredictions": [
+        {
+          "severity": "Medium",
+          "category": "Complexity",
+          "file": "osu.Game/Database/RealmAccess.cs",
+          "line": 0,
+          "description": "Method `cleanupPendingDeletions` spans 52 lines, exceeding the recommended maximum of 50, making it harder to understand and maintain.",
+          "recommendation": "Refactor the method by extracting logical sections into private helper methods.",
+          "lowConfidence": false,
+          "selfEvalTotal": 8
+        },
+        {
+          "severity": "Medium",
+          "category": "Complexity",
+          "file": "osu.Game/Database/RealmAccess.cs",
+          "line": 0,
+          "description": "Class `RealmAccess` now contains 52 members, far above the recommended maximum of 20, indicating a violation of the Single Responsibility Principle.",
+          "recommendation": "Consider splitting responsibilities into smaller, focused classes (e.g., asset management, schema versioning, disposal handling).",
+          "lowConfidence": false,
+          "selfEvalTotal": 8
+        },
+        {
+          "severity": "High",
+          "category": "BlockingAsyncCall",
+          "file": "osu.Game/Database/RealmAccess.cs",
+          "line": 788,
+          "description": "[PerformanceAgent]: Synchronous `SemaphoreSlim.Wait` blocks the calling thread, potentially causing thread‑pool starvation and deadlocks when `getRealmInstance` is invoked from async contexts.\n\n[LogicAgent]: Calling `realmRetrievalLock.Wait(realmRetrievalCancellation.Token)` can throw `OperationCanceledException` when the token is cancelled, and the exception is not caught, leading to an unhandled exception and potential crash.",
+          "recommendation": "Replace the blocking `Wait` with an asynchronous `await realmRetrievalLock.WaitAsync(realmRetrievalCancellation.Token)` and make the calling method async.\nWrap the wait call in a try/catch for `OperationCanceledException` and handle cancellation gracefully.",
+          "lowConfidence": false,
+          "selfEvalTotal": 9
+        },
+        {
+          "severity": "High",
+          "category": "Complexity",
+          "file": "osu.Game/Database/RealmAccess.cs",
+          "line": 428,
+          "description": "Removing items from `realm` while iterating over `pendingDeleteOnlineAssets` (an IQueryable) may cause an `InvalidOperationException` because the underlying collection is modified during enumeration.",
+          "recommendation": "Materialize the query into a list before iterating, e.g., `var assets = pendingDeleteOnlineAssets.ToList();` then remove each.",
+          "lowConfidence": false,
+          "selfEvalTotal": 9
+        }
+      ],
+      "unmatchedGroundTruth": [
+        "I think we'll want to make this `[Indexed]` to avoid the startup purge potentially blowing out in time taken. I can imagine the query getting slow once we start tracking thousands of avatars / covers.",
+        "We currently don't perform many background realm writes elsewhere in the game, which will change once this gets used more regularly. Based on a subset of people having issues with difficulty calculation adding game-wide stutters, I'm very curious to see how this performs for a wider test audience. It may signal the end of realm as an option for us, worst case. If we wanted to play things safe and"
+      ]
+    },
+    {
+      "row": 7,
+      "repoUrl": "https://github.com/microsoft/kiota",
+      "commitSha": "8657cefa2b61f2eca451bd11f2a527c6cb69e081",
+      "status": "ok",
+      "pipelineSeconds": 7.91,
+      "predictedCount": 4,
+      "groundTruthCount": 2,
+      "excludedLowConfidence": 0,
+      "matchedPredictions": 0,
+      "matchedGroundTruth": 0,
+      "precision": 0,
+      "recall": 0,
+      "f1": 0,
+      "pipelineSummary": "Reviewed 2 files. Found 4 findings across 2 files: 0 critical, 2 high, 1 medium, 1 low. 1 finding(s) could not be matched to a specific line. Self-evaluation scored 4/4 findings (threshold 5/9); none flagged low-confidence.",
+      "matches": [],
+      "unmatchedPredictions": [
+        {
+          "severity": "Low",
+          "category": "Complexity",
+          "file": "tests/Kiota.Builder.Tests/Writers/TypeScript/TypeScriptConventionServiceTests.cs",
+          "line": 0,
+          "description": "Two test methods contain duplicated setup logic for building a code file with a using, violating DRY principles.",
+          "recommendation": "Extract the common setup into a private helper method used by both tests.",
+          "lowConfidence": false,
+          "selfEvalTotal": 9
+        },
+        {
+          "severity": "Medium",
+          "category": "SolidViolation",
+          "file": "src/Kiota.Builder/Writers/TypeScript/TypeScriptConventionService.cs",
+          "line": 194,
+          "description": "Introducing a static ConditionalWeakTable creates hidden global mutable state, breaking the Single Responsibility and Testability principles of the service.",
+          "recommendation": "Encapsulate the caching logic in an instance service injected where needed, or make the method pure by removing the static cache.",
+          "lowConfidence": false,
+          "selfEvalTotal": 7
+        },
+        {
+          "severity": "High",
+          "category": "Complexity",
+          "file": "src/Kiota.Builder/Writers/TypeScript/TypeScriptConventionService.cs",
+          "line": 203,
+          "description": "The usings are cached per block using ConditionalWeakTable, but the cache is never invalidated when new using statements are added to the block after the first lookup, leading to stale alias resolution.",
+          "recommendation": "Invalidate or refresh the cached usings when the block's using collection changes, or avoid caching altogether.",
+          "lowConfidence": false,
+          "selfEvalTotal": 8
+        },
+        {
+          "severity": "High",
+          "category": "Complexity",
+          "file": "src/Kiota.Builder/Writers/TypeScript/TypeScriptConventionService.cs",
+          "line": 217,
+          "description": "SelectMany is called on the result of GetUsingsFromCodeElement without checking for null; if any child element returns null, a NullReferenceException will be thrown.",
+          "recommendation": "Filter out null results before calling SelectMany or ensure GetUsingsFromCodeElement never returns null.",
+          "lowConfidence": false,
+          "selfEvalTotal": 9
+        }
+      ],
+      "unmatchedGroundTruth": [
+        "why is it static? if kiota's instance does multiple generations in a row, this will keep growing.",
+        "is there any specific reason why you used CWT instead of ConcurrentDictionary here?"
+      ]
+    },
+    {
+      "row": 8,
+      "repoUrl": "https://github.com/nunit/nunit",
+      "commitSha": "b6611848e7ec724751f198bec8dd01976823e4e5",
+      "status": "ok",
+      "pipelineSeconds": 37.79,
+      "predictedCount": 4,
+      "groundTruthCount": 2,
+      "excludedLowConfidence": 0,
+      "matchedPredictions": 0,
+      "matchedGroundTruth": 0,
+      "precision": 0,
+      "recall": 0,
+      "f1": 0,
+      "pipelineSummary": "Reviewed 7 files. Found 4 findings across 2 files: 1 critical, 2 high, 1 medium, 0 low. 1 finding(s) could not be matched to a specific line. Self-evaluation scored 4/4 findings (threshold 5/9); none flagged low-confidence.",
+      "matches": [],
+      "unmatchedPredictions": [
+        {
+          "severity": "Medium",
+          "category": "Complexity",
+          "file": "src/NUnitFramework/framework/Internal/ConstraintEvaluator.cs",
+          "line": 20,
+          "description": "Methods `Evaluate` contain duplicated branches and have cyclomatic complexity estimated above 10, making them hard to test and maintain.",
+          "recommendation": "Split the method into smaller, single‑responsibility functions (e.g., resolve, apply, report).",
+          "lowConfidence": false,
+          "selfEvalTotal": 7
+        },
+        {
+          "severity": "High",
+          "category": "Complexity",
+          "file": "src/NUnitFramework/framework/Assert.That.cs",
+          "line": 0,
+          "description": "Multiple overloads of `That` contain identical logic, leading to high maintenance cost and risk of divergent behavior.",
+          "recommendation": "Consolidate the overloads by routing them through a single private helper method.",
+          "lowConfidence": false,
+          "selfEvalTotal": 7
+        },
+        {
+          "severity": "High",
+          "category": "Complexity",
+          "file": "src/NUnitFramework/framework/Assert.That.cs",
+          "line": 118,
+          "description": "`expr` is used without a null check before being forwarded to `ConstraintEvaluator.Evaluate`; if a null constraint is supplied, the evaluator may throw a NullReferenceException.",
+          "recommendation": "Validate `expr` is not null and throw an ArgumentNullException early.",
+          "lowConfidence": false,
+          "selfEvalTotal": 9
+        },
+        {
+          "severity": "Critical",
+          "category": "Complexity",
+          "file": "src/NUnitFramework/framework/Assert.That.cs",
+          "line": 150,
+          "description": "The call to ConstraintEvaluator.Evaluate passes the method group `getExceptionMessage` instead of the evaluated string, causing the failure message to be a delegate reference rather than the intended exception text.",
+          "recommendation": "Invoke the method so the actual message string is passed.",
+          "lowConfidence": false,
+          "selfEvalTotal": 8
+        }
+      ],
+      "unmatchedGroundTruth": [
+        "If we change this to `() => message` we can reduce the number of versions of `ConstraintEvaluator` overloads to 1.",
+        "The only difference between this and the next method is the `nameof(Unless)` vs `nameof(If)` which could have been a parameter."
+      ]
+    },
+    {
+      "row": 9,
+      "repoUrl": "https://github.com/nunit/nunit",
+      "commitSha": "8502a74db31f93ffc9773035904006fc8cdd1881",
+      "status": "ok",
+      "pipelineSeconds": 59.31,
+      "predictedCount": 5,
+      "groundTruthCount": 3,
+      "excludedLowConfidence": 0,
+      "matchedPredictions": 0,
+      "matchedGroundTruth": 0,
+      "precision": 0,
+      "recall": 0,
+      "f1": 0,
+      "pipelineSummary": "Reviewed 5 files. Found 5 findings across 1 files: 1 critical, 1 high, 3 medium, 0 low. 2 finding(s) boosted to Critical via cross-agent agreement. Self-evaluation scored 5/5 findings (threshold 5/9); none flagged low-confidence.",
+      "matches": [],
+      "unmatchedPredictions": [
+        {
+          "severity": "Medium",
+          "category": "Complexity",
+          "file": "src/NUnitFramework/framework/Internal/Filters/PartitionFilter.cs",
+          "line": 61,
+          "description": "[PerformanceAgent]: TryCreate method has 59 lines and cyclomatic complexity 12, making it harder for JIT to inline and increasing CPU cache pressure.\n\n[LogicAgent]: Method TryCreate has cyclomatic complexity of 12, exceeding the recommended maximum of 10.\n\n[LogicAgent]: Method TryCreate spans 59 lines, exceeding the recommended limit of 50 lines.",
+          "recommendation": "Refactor TryCreate into smaller helper methods (e.g., ParseParts, ValidateDelimiter, CreateFilter) to reduce method size and complexity.\nExtract validation, parsing, and filter creation into separate private methods.\nBreak the method into smaller, well‑named helper methods.",
+          "lowConfidence": false,
+          "selfEvalTotal": 9
+        },
+        {
+          "severity": "Medium",
+          "category": "SolidViolation",
+          "file": "src/NUnitFramework/framework/Internal/Filters/PartitionFilter.cs",
+          "line": 26,
+          "description": "Changing PartitionFilter from sealed to abstract opens the class for inheritance, potentially breaking code that relied on its sealed nature and violating the Open/Closed Principle.",
+          "recommendation": "Re‑evaluate whether inheritance is required; if not, keep the class sealed or provide a separate extensibility point.",
+          "lowConfidence": false,
+          "selfEvalTotal": 7
+        },
+        {
+          "severity": "Medium",
+          "category": "Complexity",
+          "file": "src/NUnitFramework/framework/Internal/Filters/PartitionFilter.cs",
+          "line": 66,
+          "description": "[PerformanceAgent]: Each call to TryCreate allocates a new string array via value.Split('/', ':') which can be invoked many times in test discovery, leading to unnecessary heap allocations.\n\n[LogicAgent]: Splitting the input string on both '/' and ':' may produce unexpected parts for malformed strings such as \"1:10/fixture\".",
+          "recommendation": "Replace the Split call with Span<char>-based parsing to avoid allocating an array.\nValidate the delimiter order explicitly before splitting, or split only on '/' then handle ':' in the third part.",
+          "lowConfidence": false,
+          "selfEvalTotal": 8
+        },
+        {
+          "severity": "High",
+          "category": "Complexity",
+          "file": "src/NUnitFramework/framework/Internal/Filters/PartitionFilter.cs",
+          "line": 94,
+          "description": "When a partition type is supplied (parts.Length == 3), the code does not verify that the type string matches a known value before calling CreateFilterInstance, which may return null and lead to unexpected behavior.",
+          "recommendation": "Validate the third part against the allowed types (e.g., \"test\" or \"fixture\") and handle unknown types gracefully.",
+          "lowConfidence": false,
+          "selfEvalTotal": 8
+        },
+        {
+          "severity": "Critical",
+          "category": "Complexity",
+          "file": "src/NUnitFramework/framework/Internal/Filters/PartitionFilter.cs",
+          "line": 97,
+          "description": "The return statement uses the misspelled identifier \"nul\", causing a compile error and preventing the method from returning the correct boolean result.",
+          "recommendation": "Replace the misspelled identifier with the correct null check.",
+          "lowConfidence": false,
+          "selfEvalTotal": 9
+        }
+      ],
+      "unmatchedGroundTruth": [
+        "Can we convert this to an `enum`, so we don't need to do `string` comparisons? Although it is only used once to determine the filter to create, so not to bad.",
+        "Do we care if someone uses `1:10:fixture`? or `1/10/fixture`? Yes, `1/10:fixture` reads nicer, but otherwise it is the same.",
+        "Same here, don't care if the user used `:` or `/` as separator."
+      ]
+    },
+    {
+      "row": 10,
+      "repoUrl": "https://github.com/nunit/nunit",
+      "commitSha": "62098a97927db4950ded58784fc395bbf5babc64",
+      "status": "ok",
+      "pipelineSeconds": 79.43,
+      "predictedCount": 4,
+      "groundTruthCount": 3,
+      "excludedLowConfidence": 0,
+      "matchedPredictions": 0,
+      "matchedGroundTruth": 0,
+      "precision": 0,
+      "recall": 0,
+      "f1": 0,
+      "pipelineSummary": "Reviewed 3 files. Found 4 findings across 3 files: 0 critical, 2 high, 2 medium, 0 low. 1 finding(s) could not be matched to a specific line. 1 finding(s) boosted to Critical via cross-agent agreement. Self-evaluation scored 4/4 findings (threshold 5/9); none flagged low-confidence.",
+      "matches": [],
+      "unmatchedPredictions": [
+        {
+          "severity": "Medium",
+          "category": "CodeSmell",
+          "file": "src/NUnitFramework/nunitlite/tests/TextUITests.cs",
+          "line": 16,
+          "description": "Class TextUITests contains 28 members, exceeding the recommended maximum of 20, making the test class harder to maintain.",
+          "recommendation": "Split the tests into multiple focused test classes.",
+          "lowConfidence": false,
+          "selfEvalTotal": 8
+        },
+        {
+          "severity": "Medium",
+          "category": "CodeSmell",
+          "file": "src/NUnitFramework/nunitlite/TextRunner.cs",
+          "line": 0,
+          "description": "Class TextRunner has 29 members, which is larger than the recommended limit of 20, indicating potential violation of the Single Responsibility Principle.",
+          "recommendation": "Refactor responsibilities into smaller helper classes.",
+          "lowConfidence": false,
+          "selfEvalTotal": 7
+        },
+        {
+          "severity": "High",
+          "category": "SensitiveDataExposure",
+          "file": "src/NUnitFramework/nunitlite/TextUI.cs",
+          "line": 230,
+          "description": "[SecurityAgent]: DisplayRunSettings now iterates over all run settings and writes them directly to the console, potentially leaking sensitive configuration values (e.g., passwords, tokens) to logs or output streams.\n\n[LogicAgent]: DisplayRunSettings iterates over 'runSettings' without checking for null, which can cause a NullReferenceException if a caller passes a null dictionary.\n\n[LogicAgent]: DisplayRunSettings writes settings in the enumeration order of a Dictionary, which is not guaranteed, causing nondeterministic console output and flaky tests that expect a specific order.",
+          "recommendation": "Filter out or mask sensitive keys before printing their values in DisplayRunSettings.\nAdd a null check and return early or throw an ArgumentNullException.\nIterate over the settings in a deterministic order, e.g., sorted by key.",
+          "lowConfidence": false,
+          "selfEvalTotal": 9
+        },
+        {
+          "severity": "High",
+          "category": "Complexity",
+          "file": "src/NUnitFramework/nunitlite/TextUI.cs",
+          "line": 220,
+          "description": "DisplayRunSettings() calls a static method TextRunner.MakeRunSettings, creating a hard dependency on TextRunner and violating the Single Responsibility Principle.",
+          "recommendation": "Inject a run‑settings provider via constructor or interface instead of calling a static method.",
+          "lowConfidence": false,
+          "selfEvalTotal": 8
+        }
+      ],
+      "unmatchedGroundTruth": [
+        "FYI: As `_options.WorkDirectory` is never `null`, this will always be included in _runSettings_.",
+        "FYI: `InternalTraceLevel` on the other hand can be null and will now be omitted if not specified.",
+        "I know this was previously output, but if the user doesn't specify it explicitly, do we need to display it?"
+      ]
+    },
+    {
+      "row": 11,
+      "repoUrl": "https://github.com/MonoGame/MonoGame",
+      "commitSha": "54c93ddc11e70b0a1abd98797c3ce82c6e4a729f",
+      "status": "ok",
+      "pipelineSeconds": 24.19,
+      "predictedCount": 5,
+      "groundTruthCount": 2,
+      "excludedLowConfidence": 0,
+      "matchedPredictions": 0,
+      "matchedGroundTruth": 0,
+      "precision": 0,
+      "recall": 0,
+      "f1": 0,
+      "pipelineSummary": "Reviewed 5 files. Found 5 findings across 2 files: 0 critical, 2 high, 3 medium, 0 low. 3 finding(s) could not be matched to a specific line. Self-evaluation scored 5/5 findings (threshold 5/9); none flagged low-confidence.",
+      "matches": [],
+      "unmatchedPredictions": [
+        {
+          "severity": "Medium",
+          "category": "Complexity",
+          "file": "MonoGame.Framework/Platform/Graphics/GraphicsDevice.OpenGL.cs",
+          "line": 0,
+          "description": "Method PlatformDeleteRenderTarget has cyclomatic complexity of 11, exceeding the target of <10.",
+          "recommendation": "Refactor the method by extracting validation and cleanup steps into separate private methods.",
+          "lowConfidence": false,
+          "selfEvalTotal": 8
+        },
+        {
+          "severity": "Medium",
+          "category": "Complexity",
+          "file": "MonoGame.Framework/Graphics/GraphicsDevice.cs",
+          "line": 0,
+          "description": "Two overloads of SetRenderTarget contain 95% duplicated code, violating DRY principle.",
+          "recommendation": "Extract the common logic into a private helper method and have both overloads call it.",
+          "lowConfidence": false,
+          "selfEvalTotal": 8
+        },
+        {
+          "severity": "Medium",
+          "category": "Complexity",
+          "file": "MonoGame.Framework/Graphics/GraphicsDevice.cs",
+          "line": 0,
+          "description": "GraphicsDevice class has 136 members, making it a Large Class and hard to maintain.",
+          "recommendation": "Consider splitting responsibilities into smaller, focused classes (e.g., RenderTargetManager, StateCache).",
+          "lowConfidence": false,
+          "selfEvalTotal": 6
+        },
+        {
+          "severity": "High",
+          "category": "Complexity",
+          "file": "MonoGame.Framework/Platform/Graphics/GraphicsDevice.OpenGL.cs",
+          "line": 739,
+          "description": "Unconditional deletion of the color buffer renderbuffer may attempt to delete a texture when the buffer is not a renderbuffer, leading to GL errors or crashes.",
+          "recommendation": "Restore the original check (e.g., using a flag like colorIsRenderbuffer) before calling DeleteRenderbuffer on the color buffer.",
+          "lowConfidence": false,
+          "selfEvalTotal": 9
+        },
+        {
+          "severity": "High",
+          "category": "Complexity",
+          "file": "MonoGame.Framework/Platform/Graphics/GraphicsDevice.OpenGL.cs",
+          "line": 740,
+          "description": "Unconditional deletion of the stencil buffer may delete a depth buffer when stencil and depth share the same buffer, potentially causing double deletion.",
+          "recommendation": "Add a condition to ensure stencil is deleted only when it is distinct from the depth buffer.",
+          "lowConfidence": false,
+          "selfEvalTotal": 5
+        }
+      ],
+      "unmatchedGroundTruth": [
+        "Don't like the temporary allocation here... can we just do the removal in one pass?",
+        "I guess you're using a try/finally here because of a concern that an exception being thrown from SetRenderTargets and the _tempRenderTargetBinding never being cleared? No other code in GraphicsDevice does this... so it stands out as odd. So i wonder if that safety for the odd case is worth it. Also i dislike the same long comment repeated 4 times in the class. You can keep it short: `// Clear temp"
+      ]
+    },
+    {
+      "row": 12,
+      "repoUrl": "https://github.com/MonoGame/MonoGame",
+      "commitSha": "04d9799f727678245af893587233c773b7c4f15a",
+      "status": "ok",
+      "pipelineSeconds": 56.59,
+      "predictedCount": 2,
+      "groundTruthCount": 2,
+      "excludedLowConfidence": 0,
+      "matchedPredictions": 1,
+      "matchedGroundTruth": 1,
+      "precision": 0.5,
+      "recall": 0.5,
+      "f1": 0.5,
+      "pipelineSummary": "Reviewed 2 files. Found 2 findings across 1 files: 0 critical, 0 high, 1 medium, 1 low. Self-evaluation scored 2/2 findings (threshold 5/9); none flagged low-confidence.",
+      "matches": [
+        {
+          "finding": {
+            "severity": "Low",
+            "category": "Complexity",
+            "file": "MonoGame.Framework/Audio/Xact/AudioEngine.cs",
+            "line": 82,
+            "description": "The obsolete overload retains unused parameters (lookAheadTime, rendererId) which can mislead developers into thinking they have effect.",
+            "recommendation": "Remove the unused parameters from the obsolete overload or make the overload private to discourage use.",
+            "lowConfidence": false,
+            "selfEvalTotal": 8
+          },
+          "groundTruth": "Same here... we cannot remove this. Best we can do is add into the `<remarks>` that the look ahead and render id is unused.",
+          "similarity": 0.345
+        }
+      ],
+      "unmatchedPredictions": [
+        {
+          "severity": "Medium",
+          "category": "Complexity",
+          "file": "MonoGame.Framework/Audio/Xact/AudioEngine.cs",
+          "line": 93,
+          "description": "The constructor only checks string.IsNullOrEmpty, allowing whitespace-only paths to pass validation and later cause ambiguous file‑open errors.",
+          "recommendation": "Use string.IsNullOrWhiteSpace to reject whitespace-only strings or trim the input before validation.",
+          "lowConfidence": false,
+          "selfEvalTotal": 8
+        }
+      ],
+      "unmatchedGroundTruth": [
+        "not sure we can remove this public API point even if the arguments are not used. It may break the public API, so if there are compiled libraries (Nuget's) which are out there calling this method, one upgrade they will error at runtime. What we can do if its not used is `Obsolete` the one that does nothing, then we can remove it at a later date. Although the plan is to integrate FAudio I think, so"
+      ]
+    }
+  ]
+}
