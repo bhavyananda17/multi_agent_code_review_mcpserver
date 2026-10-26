@@ -54,6 +54,12 @@ try
         case "bench":
             await RunBenchAsync(app.Services.GetRequiredService<BenchmarkRunner>(), args);
             break;
+        case "bench-compare":
+            await RunBenchCompareAsync(args);
+            break;
+        case "bench-summary":
+            await RunBenchSummaryAsync(args);
+            break;
         default:
             Console.WriteLine($"Unknown command: {command}");
             ShowHelp();
@@ -78,13 +84,16 @@ static void ShowHelp()
           dotnet run -- ask <repo-path> <commit-hash> <question>
           dotnet run -- docs <repo-path> <commit-hash> [base-commit]
           dotnet run -- bench <input.csv> [--out results.json] [--md summary.md] [--threshold 0.25]
-                              [--one-to-one] [--include-low-confidence]
+                              [--one-to-one] [--include-low-confidence] [--record <dir> | --replay <dir>]
+          dotnet run -- bench-compare <a-results.json> <b-results.json> [--exclude-degraded] [--out comparison.md]
+          dotnet run -- bench-summary <results.json> [--md summary.md] [--json recomputed.json]
 
         Commands:
           review  Run full code review pipeline (--issue links a GitHub issue to focus the review)
           ask     Ask onboarding question about codebase (auto-runs review if needed)
           docs    Generate documentation (auto-runs review if needed)
           bench   Run the pipeline over a CSV of (repo URL, commit SHA, human findings) and report precision/recall/F1
+          bench-compare  Paired comparison of two bench results files (before/after, or two judges)
 
         Environment Variables:
           MULTIAGENT_GROQ_API_KEY    Your Groq API key (required)
@@ -289,6 +298,8 @@ static async Task RunBenchAsync(BenchmarkRunner runner, string[] args)
                     throw new ArgumentException("--threshold must be a number greater than 0 and at most 1.");
                 options.SimilarityThreshold = threshold;
                 break;
+            case "--record": options.RecordDirectory = Value(); break;
+            case "--replay": options.ReplayDirectory = Value(); break;
             case "--one-to-one": options.OneToOne = true; break;
             case "--include-low-confidence": options.IncludeLowConfidence = true; break;
             default:
@@ -303,11 +314,14 @@ static async Task RunBenchAsync(BenchmarkRunner runner, string[] args)
 
     if (csvPath == null)
     {
-        Console.WriteLine("Usage: bench <input.csv> [--out results.json] [--md summary.md] [--threshold 0.25] [--one-to-one] [--include-low-confidence]");
+        Console.WriteLine("Usage: bench <input.csv> [--out results.json] [--md summary.md] [--threshold 0.25] [--one-to-one] [--include-low-confidence] [--record <dir> | --replay <dir>]");
         return;
     }
     if (!File.Exists(csvPath))
         throw new FileNotFoundException($"CSV file not found: {csvPath}");
+
+    if (options.RecordDirectory != null && options.ReplayDirectory != null)
+        throw new ArgumentException("--record and --replay cannot be used together.");
 
     outPath ??= "bench-results.json";
     mdPath ??= Path.ChangeExtension(outPath, ".md");
@@ -350,6 +364,79 @@ static async Task RunBenchAsync(BenchmarkRunner runner, string[] args)
     finally
     {
         Console.CancelKeyPress -= onCancel;
+    }
+}
+
+// Re-renders a saved results file with the current tooling: the per-PR rows are used exactly as saved, and the
+// aggregates (averages, bootstrap intervals, warning counts) are recomputed from them. Handy for results written by an
+// older version of the tool.
+static async Task RunBenchSummaryAsync(string[] args)
+{
+    string? file = null, mdPath = null, jsonPath = null;
+    for (var i = 1; i < args.Length; i++)
+    {
+        if (args[i] == "--md") mdPath = i + 1 < args.Length ? args[++i] : throw new ArgumentException("--md requires a value.");
+        else if (args[i] == "--json") jsonPath = i + 1 < args.Length ? args[++i] : throw new ArgumentException("--json requires a value.");
+        else if (args[i].StartsWith("--", StringComparison.Ordinal)) throw new ArgumentException($"Unknown option '{args[i]}'.");
+        else file = file == null ? args[i] : throw new ArgumentException($"Unexpected argument '{args[i]}'.");
+    }
+    if (file == null)
+    {
+        Console.WriteLine("Usage: bench-summary <results.json> [--md summary.md] [--json recomputed.json]");
+        return;
+    }
+    if (!File.Exists(file))
+        throw new FileNotFoundException($"Results file not found: {file}");
+
+    var saved = BenchmarkComparer.Load(await File.ReadAllTextAsync(file));
+    var result = saved with { Aggregate = BenchmarkRunner.Aggregate(saved.Results) };
+    var markdown = BenchmarkReportWriter.ToMarkdown(result);
+
+    Console.WriteLine(markdown);
+    if (mdPath != null) await File.WriteAllTextAsync(mdPath, markdown);
+    if (jsonPath != null) await File.WriteAllTextAsync(jsonPath, BenchmarkReportWriter.ToJson(result));
+}
+
+static async Task RunBenchCompareAsync(string[] args)
+{
+    string? outPath = null;
+    var excludeDegraded = false;
+    var files = new List<string>();
+    for (var i = 1; i < args.Length; i++)
+    {
+        if (args[i] == "--exclude-degraded")
+            excludeDegraded = true;
+        else if (args[i] == "--out")
+            outPath = i + 1 < args.Length ? args[++i] : throw new ArgumentException("--out requires a value.");
+        else if (args[i].StartsWith("--out=", StringComparison.Ordinal))
+            outPath = args[i]["--out=".Length..];
+        else if (args[i].StartsWith("--", StringComparison.Ordinal))
+            throw new ArgumentException($"Unknown option '{args[i]}'.");
+        else
+            files.Add(args[i]);
+    }
+
+    if (files.Count != 2)
+    {
+        Console.WriteLine("Usage: bench-compare <a-results.json> <b-results.json> [--exclude-degraded] [--out comparison.md]");
+        return;
+    }
+    foreach (var f in files)
+        if (!File.Exists(f))
+            throw new FileNotFoundException($"Results file not found: {f}");
+
+    var a = BenchmarkComparer.Load(await File.ReadAllTextAsync(files[0]));
+    var b = BenchmarkComparer.Load(await File.ReadAllTextAsync(files[1]));
+    var markdown = BenchmarkComparer.ToMarkdown(Path.GetFileName(files[0]), Path.GetFileName(files[1]), a, b, BenchmarkComparer.Compare(a, b, excludeDegraded));
+
+    Console.WriteLine(markdown);
+    if (outPath != null)
+    {
+        var dir = Path.GetDirectoryName(Path.GetFullPath(outPath));
+        if (!string.IsNullOrEmpty(dir))
+            Directory.CreateDirectory(dir);
+        await File.WriteAllTextAsync(outPath, markdown);
+        Console.WriteLine($"Comparison written to {Path.GetFullPath(outPath)}");
     }
 }
 

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
+using MultiAgentCodeReview.Agents;
 using MultiAgentCodeReview.Core.Configuration;
 using MultiAgentCodeReview.Core.Models;
 using MultiAgentCodeReview.Orchestration.Pipeline;
@@ -79,10 +80,27 @@ public class BenchmarkRunner
             var path = await _repos.PrepareAsync(row.RepoUrl, row.CommitSha, cancellationToken);
 
             var sw = Stopwatch.StartNew();
-            var output = await _pipeline.RunReviewAsync(path, row.CommitSha, null, null, cancellationToken);
+            ReviewOutput output;
+            if (options.ReplayDirectory != null)
+            {
+                // Verification only: the findings come from an earlier recorded run (same findings, different judge/settings).
+                var snapshot = SnapshotStore.Load(options.ReplayDirectory, row);
+                snapshot = snapshot with { Context = snapshot.Context with { RepositoryPath = path } };
+                output = await _pipeline.VerifyAsync(snapshot, includeGenerationTokens: false, cancellationToken);
+            }
+            else if (options.RecordDirectory != null)
+            {
+                var snapshot = await _pipeline.GenerateAsync(path, row.CommitSha, null, null, cancellationToken);
+                SnapshotStore.Save(options.RecordDirectory, row, snapshot);
+                output = await _pipeline.VerifyAsync(snapshot, includeGenerationTokens: true, cancellationToken);
+            }
+            else
+            {
+                output = await _pipeline.RunReviewAsync(path, row.CommitSha, null, null, cancellationToken);
+            }
             sw.Stop();
 
-            return Score(row, url, options, output.Result, sw.Elapsed.TotalSeconds);
+            return Score(row, url, options, output.Result, sw.Elapsed.TotalSeconds, output.Context.Warnings, output.Context.TokenUsage);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -100,10 +118,12 @@ public class BenchmarkRunner
 
     /// <summary>Scores one review. Public so the matching/metrics can be tested without running a pipeline.</summary>
     public static BenchmarkRowResult Score(
-        BenchmarkRow row, string displayUrl, BenchmarkOptions options, AgentResult result, double pipelineSeconds)
+        BenchmarkRow row, string displayUrl, BenchmarkOptions options, AgentResult result, double pipelineSeconds,
+        IReadOnlyList<string>? warnings = null,
+        TokenUsage? tokens = null)
     {
         var all = result.Findings ?? new List<Finding>();
-        var scored = options.IncludeLowConfidence ? all : all.Where(f => f.Evaluation?.LowConfidence != true).ToList();
+        var scored = options.IncludeLowConfidence ? all : all.Where(f => !f.IsFlagged()).ToList();
         var predicted = scored.Select(ToPredicted).ToList();
 
         var outcome = FindingMatcher.Match(predicted, row.GroundTruth, options.SimilarityThreshold, options.OneToOne);
@@ -118,7 +138,9 @@ public class BenchmarkRunner
             result.Summary,
             outcome.Pairs.Select(p => new MatchedPair(predicted[p.Prediction], row.GroundTruth[p.GroundTruth], Math.Round(p.Similarity, 3))).ToList(),
             predicted.Where((_, i) => !outcome.MatchedPredictions.Contains(i)).ToList(),
-            row.GroundTruth.Where((_, i) => !outcome.MatchedGroundTruth.Contains(i)).ToList());
+            row.GroundTruth.Where((_, i) => !outcome.MatchedGroundTruth.Contains(i)).ToList(),
+            warnings is { Count: > 0 } ? warnings.ToList() : null,
+            tokens);
     }
 
     public static BenchmarkAggregate Aggregate(IReadOnlyList<BenchmarkRowResult> results)
@@ -137,11 +159,15 @@ public class BenchmarkRunner
 
         return new BenchmarkAggregate(
             results.Count, ok.Count, results.Count - ok.Count, macro,
-            new MicroMetrics(predicted, truth, matchedP, matchedG, m.Precision, m.Recall, m.F1));
+            new MicroMetrics(predicted, truth, matchedP, matchedG, m.Precision, m.Recall, m.F1),
+            BenchmarkStats.MacroIntervals(ok),
+            ok.Count(r => r.Warnings is { Count: > 0 }),
+            ok.Sum(r => r.Tokens?.Total ?? 0));
     }
 
     private BenchmarkResult Build(List<BenchmarkRowResult> results, BenchmarkOptions options, bool interrupted)
     {
+        var judge = AgentFactory.EffectiveJudgeModelId(_config);
         var settings = new BenchmarkSettings(
             options.SimilarityThreshold,
             options.OneToOne ? "one-to-one" : "any-match",
@@ -150,14 +176,29 @@ public class BenchmarkRunner
             _config.Evaluation.Enabled,
             _config.Evaluation.Threshold,
             _config.Evaluation.ExcludeLowConfidence,
-            _config.Models.ToDictionary(kv => kv.Key, kv => kv.Value.ModelId));
+            _config.Models.ToDictionary(kv => kv.Key, kv => kv.Value.ModelId),
+            _config.Grounding.Enabled,
+            _config.Filtering.StaticAnalysis,
+            BaseSpecialistAgent.DiffCharBudget,
+            judge,
+            JudgeRelation(judge),
+            _config.Pipeline.AgentTimeoutSeconds,
+            options.ReplayDirectory != null ? "replay" : options.RecordDirectory != null ? "record" : "live");
 
         return new BenchmarkResult(DateTime.UtcNow, interrupted, settings, Aggregate(results), results.ToList());
     }
 
+    private string JudgeRelation(string judge)
+    {
+        var generators = AgentFactory.GeneratorModelIds(_config);
+        if (generators.Contains(judge, StringComparer.OrdinalIgnoreCase)) return "same model as a generator";
+        if (generators.Any(g => AgentFactory.ModelFamily(g) == AgentFactory.ModelFamily(judge))) return "same family as a generator";
+        return "independent family";
+    }
+
     private static PredictedFinding ToPredicted(Finding f) => new(
         f.Severity.ToString(), f.Category.ToString(), f.File, f.Line, f.Description, f.Recommendation,
-        f.Evaluation?.LowConfidence == true, f.Evaluation?.Total);
+        f.IsFlagged(), f.Evaluation?.Total, f.Grounded, f.CodeSnippet);
 
     /// <summary>Strips "user:token@" from a URL so credentials never appear in output or logs.</summary>
     public static string Redact(string url) => UrlUserInfo.Replace(url, "***@");

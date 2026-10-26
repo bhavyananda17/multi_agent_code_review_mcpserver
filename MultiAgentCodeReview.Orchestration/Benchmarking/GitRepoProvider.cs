@@ -18,13 +18,23 @@ public interface IBenchmarkRepoProvider : IAsyncDisposable
 /// </summary>
 public sealed class GitRepoProvider : IBenchmarkRepoProvider
 {
+    // A clone of a large repo over a flaky connection can drop ("Connection reset by peer"); one dropped
+    // connection should not cost a whole benchmark row.
+    private static readonly TimeSpan[] DefaultCloneRetryDelays = { TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(15) };
+
+    // Failures that retrying cannot fix.
+    private static readonly string[] PermanentCloneErrors =
+        { "not found", "Authentication failed", "could not read Username", "Permission denied", "does not appear to be a git repository", "Repository not found" };
+
     private readonly IRepositorySourceResolver _resolver;
+    private readonly TimeSpan[] _retryDelays;
     private readonly Dictionary<string, ResolvedRepository> _clones = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _cloneFailures = new(StringComparer.Ordinal);
 
-    public GitRepoProvider(IRepositorySourceResolver resolver)
+    public GitRepoProvider(IRepositorySourceResolver resolver, TimeSpan[]? retryDelays = null)
     {
         _resolver = resolver;
+        _retryDelays = retryDelays ?? DefaultCloneRetryDelays;
     }
 
     public async Task<string> PrepareAsync(string repoUrl, string commitSha, CancellationToken cancellationToken = default)
@@ -41,7 +51,7 @@ public sealed class GitRepoProvider : IBenchmarkRepoProvider
         {
             try
             {
-                repo = await _resolver.ResolveAsync(repoUrl, cancellationToken);
+                repo = await CloneWithRetryAsync(repoUrl, cancellationToken);
                 _clones[repoUrl] = repo;
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
@@ -62,6 +72,23 @@ public sealed class GitRepoProvider : IBenchmarkRepoProvider
             throw new InvalidOperationException($"commit {commitSha} has no parent, so there is no diff to review.");
 
         return repo.Path;
+    }
+
+    private async Task<ResolvedRepository> CloneWithRetryAsync(string repoUrl, CancellationToken cancellationToken)
+    {
+        for (var attempt = 0; ; attempt++)
+        {
+            try
+            {
+                return await _resolver.ResolveAsync(repoUrl, cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException
+                                       && attempt < _retryDelays.Length
+                                       && !PermanentCloneErrors.Any(p => ex.Message.Contains(p, StringComparison.OrdinalIgnoreCase)))
+            {
+                await Task.Delay(_retryDelays[attempt], cancellationToken);
+            }
+        }
     }
 
     private static async Task<(int ExitCode, string Error)> RunGitAsync(

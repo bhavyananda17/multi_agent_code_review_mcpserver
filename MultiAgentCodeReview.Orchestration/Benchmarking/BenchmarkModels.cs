@@ -1,3 +1,5 @@
+using MultiAgentCodeReview.Core.Models;
+
 namespace MultiAgentCodeReview.Orchestration.Benchmarking;
 
 /// <summary>One benchmark input: a commit plus the findings human reviewers actually left on it.</summary>
@@ -15,7 +17,17 @@ public class BenchmarkOptions
     /// </summary>
     public bool OneToOne { get; set; }
 
-    /// <summary>Score findings the self-evaluation stage flagged low-confidence too (default: only what the report shows).</summary>
+    /// <summary>Run the generation stages for real and save them here (one JSON file per row); verification then runs as usual.</summary>
+    public string? RecordDirectory { get; set; }
+
+    /// <summary>
+    /// Do not call the specialists: load the generations saved by an earlier <see cref="RecordDirectory"/> run and run
+    /// only the verification stages (grounding check, judge). Findings are then identical across runs, so judge and
+    /// grounding settings can be compared like for like, and only the judge spends tokens.
+    /// </summary>
+    public string? ReplayDirectory { get; set; }
+
+    /// <summary>Score flagged findings too (low self-evaluation score, or quoted code not found). Default: only what the report shows.</summary>
     public bool IncludeLowConfidence { get; set; }
 }
 
@@ -27,7 +39,9 @@ public record PredictedFinding(
     string Description,
     string? Recommendation,
     bool LowConfidence,
-    int? SelfEvalTotal);
+    int? SelfEvalTotal,
+    bool? Grounded = null,
+    string? CodeSnippet = null);
 
 public record MatchedPair(PredictedFinding Finding, string GroundTruth, double Similarity);
 
@@ -49,7 +63,9 @@ public record BenchmarkRowResult(
     string? PipelineSummary,
     List<MatchedPair> Matches,
     List<PredictedFinding> UnmatchedPredictions,
-    List<string> UnmatchedGroundTruth);
+    List<string> UnmatchedGroundTruth,
+    List<string>? Warnings = null,
+    TokenUsage? Tokens = null);
 
 public record Metrics(double Precision, double Recall, double F1);
 
@@ -62,7 +78,7 @@ public record MicroMetrics(
     double Recall,
     double F1);
 
-public record BenchmarkAggregate(int Rows, int Succeeded, int Failed, Metrics? Macro, MicroMetrics? Micro);
+public record BenchmarkAggregate(int Rows, int Succeeded, int Failed, Metrics? Macro, MicroMetrics? Micro, MetricIntervals? MacroCi95 = null, int DegradedRows = 0, int TotalTokens = 0);
 
 public record BenchmarkSettings(
     double SimilarityThreshold,
@@ -72,7 +88,14 @@ public record BenchmarkSettings(
     bool EvaluationEnabled,
     int EvaluationThreshold,
     bool EvaluationExcludesLowConfidence,
-    Dictionary<string, string> ModelOverrides);
+    Dictionary<string, string> ModelOverrides,
+    bool GroundingEnabled = true,
+    bool StaticAnalysisEnabled = true,
+    int DiffCharBudget = 0,
+    string? JudgeModel = null,
+    string? JudgeRelation = null,
+    int AgentTimeoutSeconds = 0,
+    string? Mode = null);
 
 public record BenchmarkResult(
     DateTime GeneratedAtUtc,
