@@ -111,6 +111,9 @@ public class FilterStage
         return new DependencyGraph(fileDependencies, reverseDependencies, entryPoints.Distinct().ToList());
     }
 
+    private static int CountLines(string hunkContent, char marker) =>
+        hunkContent.Split('\n').Count(l => l.Length > 0 && l[0] == marker);
+
     private List<ChangedFile> FilterRelevantFiles(
         List<string> changedFiles,
         DependencyGraph dependencyGraph,
@@ -144,8 +147,9 @@ public class FilterStage
             {
                 var fileDiff = diff.Files.FirstOrDefault(fd =>
                     fd.Path == f || fd.Path.EndsWith(f) || f.EndsWith(fd.Path));
-                var additions = fileDiff?.Hunks.Sum(h => Math.Max(0, h.NewLines)) ?? 0;
-                var deletions = fileDiff?.Hunks.Sum(h => Math.Max(0, h.OldLines)) ?? 0;
+                // Count the lines actually added and removed. (The hunk header's line counts include unchanged context.)
+                var additions = fileDiff?.Hunks.Sum(h => CountLines(h.Content, '+')) ?? 0;
+                var deletions = fileDiff?.Hunks.Sum(h => CountLines(h.Content, '-')) ?? 0;
                 var changeType = fileDiff?.ChangeType ?? ChangeType.Modified;
                 return new ChangedFile(f, additions, deletions, changeType);
             })

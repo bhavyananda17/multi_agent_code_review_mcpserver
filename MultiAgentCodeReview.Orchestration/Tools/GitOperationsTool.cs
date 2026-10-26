@@ -6,6 +6,18 @@ namespace MultiAgentCodeReview.Orchestration.Tools;
 
 public class GitOperationsTool : IGitOperationsTool
 {
+    // Characters a ref may contain. Anything else (spaces, quotes, ';', leading '-') is refused, because refs reach
+    // git as part of one argument string and a value like "--output=/some/file" would be parsed as an option.
+    private static readonly System.Text.RegularExpressions.Regex SafeRef = new(@"^[A-Za-z0-9._/~^@{}-]+$", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    public static bool IsSafeRef(string value) => !string.IsNullOrWhiteSpace(value) && value[0] != '-' && SafeRef.IsMatch(value);
+
+    private static void RequireSafeRef(string value, string what)
+    {
+        if (!IsSafeRef(value))
+            throw new ArgumentException($"{what} is not a valid git ref (it may only contain letters, digits and . _ / ~ ^ @ {{ }} -, and cannot start with '-').");
+    }
+
     private readonly string _repoPath;
 
     public GitOperationsTool(string repoPath = ".")
@@ -15,6 +27,8 @@ public class GitOperationsTool : IGitOperationsTool
 
     public async Task<GitDiff> GetDiffAsync(string fromRef, string toRef = "HEAD")
     {
+        RequireSafeRef(fromRef, "from ref");
+        RequireSafeRef(toRef, "to ref");
         var resolvedFrom = await ResolveMergeBaseAsync(fromRef, toRef);
         var output = await RunGitCommandAsync($"diff {resolvedFrom} {toRef} --no-color");
         return ParseDiffOutput(output);
@@ -22,6 +36,8 @@ public class GitOperationsTool : IGitOperationsTool
 
     public async Task<List<string>> GetChangedFilesAsync(string fromRef = "HEAD~1", string toRef = "HEAD")
     {
+        RequireSafeRef(fromRef, "from ref");
+        RequireSafeRef(toRef, "to ref");
         var resolvedFrom = await ResolveMergeBaseAsync(fromRef, toRef);
         var output = await RunGitCommandAsync($"diff --name-only {resolvedFrom} {toRef}");
         return output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
@@ -103,6 +119,8 @@ public class GitOperationsTool : IGitOperationsTool
     {
         var fileDiffs = new List<FileDiff>();
         string? currentPath = null;
+        string? currentOldPath = null;
+        var currentChange = ChangeType.Modified;
         var currentHunks = new List<Hunk>();
         var currentHunkLines = new List<string>();
         int oldStart = 0, oldLines = 0, newStart = 0, newLines = 0;
@@ -132,8 +150,10 @@ public class GitOperationsTool : IGitOperationsTool
         {
             FlushHunk();
             if (currentPath != null)
-                fileDiffs.Add(new FileDiff(currentPath, currentPath, ChangeType.Modified, currentHunks));
+                fileDiffs.Add(new FileDiff(currentPath, currentOldPath ?? currentPath, currentChange, currentHunks));
             currentPath = null;
+            currentOldPath = null;
+            currentChange = ChangeType.Modified;
             currentHunks = new List<Hunk>();
         }
 
@@ -164,6 +184,20 @@ public class GitOperationsTool : IGitOperationsTool
                     newLines = newParts.Length > 1 ? int.Parse(newParts[1]) : 1;
                 }
                 inHunk = true;
+            }
+            // File-level header lines come before the first hunk.
+            else if (!inHunk && line.StartsWith("new file mode", StringComparison.Ordinal))
+            {
+                currentChange = ChangeType.Added;
+            }
+            else if (!inHunk && line.StartsWith("deleted file mode", StringComparison.Ordinal))
+            {
+                currentChange = ChangeType.Deleted;
+            }
+            else if (!inHunk && line.StartsWith("rename from ", StringComparison.Ordinal))
+            {
+                currentChange = ChangeType.Renamed;
+                currentOldPath = line["rename from ".Length..];
             }
             else if (inHunk)
             {
