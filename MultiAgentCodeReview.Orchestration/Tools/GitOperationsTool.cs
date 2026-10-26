@@ -102,48 +102,51 @@ public class GitOperationsTool : IGitOperationsTool
     private GitDiff ParseDiffOutput(string output)
     {
         var fileDiffs = new List<FileDiff>();
-        FileDiff? currentFileDiff = null;
+        string? currentPath = null;
         var currentHunks = new List<Hunk>();
         var currentHunkLines = new List<string>();
         int oldStart = 0, oldLines = 0, newStart = 0, newLines = 0;
         bool inHunk = false;
 
+        // A hunk is only complete once the next "@@", the next "diff --git" or the end of the output is
+        // reached, so all three must flush it. (Flushing only on "@@" silently dropped every file's last
+        // hunk and glued its lines onto the start of the next file's first hunk.)
+        void FlushHunk()
+        {
+            if (inHunk && currentHunkLines.Count > 0)
+            {
+                currentHunks.Add(new Hunk
+                (
+                    OldStart: oldStart,
+                    OldLines: oldLines,
+                    NewStart: newStart,
+                    NewLines: newLines,
+                    Content: string.Join("\n", currentHunkLines) + "\n"
+                ));
+            }
+            currentHunkLines.Clear();
+            inHunk = false;
+        }
+
+        void FlushFile()
+        {
+            FlushHunk();
+            if (currentPath != null)
+                fileDiffs.Add(new FileDiff(currentPath, currentPath, ChangeType.Modified, currentHunks));
+            currentPath = null;
+            currentHunks = new List<Hunk>();
+        }
+
         foreach (var line in output.Split('\n'))
         {
-            if (line.StartsWith("diff --git"))
+            if (line.StartsWith("diff --git "))
             {
-                if (currentFileDiff != null)
-                {
-                    currentFileDiff = currentFileDiff with { Hunks = currentHunks };
-                    fileDiffs.Add(currentFileDiff);
-                }
-
-                var parts = line.Split(' ');
-                var file = parts.Length > 3 ? parts[3].TrimStart('a', '/', 'b', '/') : "";
-                currentFileDiff = new FileDiff
-                (
-                    Path: file,
-                    OldPath: file,
-                    ChangeType: ChangeType.Modified,
-                    Hunks: new List<Hunk>()
-                );
-                currentHunks = new List<Hunk>();
-                inHunk = false;
+                FlushFile();
+                currentPath = ParseDiffGitPath(line);
             }
             else if (line.StartsWith("@@"))
             {
-                if (inHunk && currentHunkLines.Count > 0)
-                {
-                    currentHunks.Add(new Hunk
-                    (
-                        OldStart: oldStart,
-                        OldLines: oldLines,
-                        NewStart: newStart,
-                        NewLines: newLines,
-                        Content: string.Join("\n", currentHunkLines) + "\n"
-                    ));
-                    currentHunkLines.Clear();
-                }
+                FlushHunk();
 
                 var hunkHeader = line.Substring(3, line.IndexOf("@@", 3) - 3).Trim();
                 var parts = hunkHeader.Split(' ');
@@ -151,10 +154,10 @@ public class GitOperationsTool : IGitOperationsTool
                 {
                     var oldPart = parts[0].TrimStart('-');
                     var newPart = parts[1].TrimStart('+');
-                    
+
                     var oldParts = oldPart.Split(',');
                     var newParts = newPart.Split(',');
-                    
+
                     oldStart = int.Parse(oldParts[0]);
                     oldLines = oldParts.Length > 1 ? int.Parse(oldParts[1]) : 1;
                     newStart = int.Parse(newParts[0]);
@@ -168,26 +171,33 @@ public class GitOperationsTool : IGitOperationsTool
             }
         }
 
-        if (inHunk && currentHunkLines.Count > 0)
-        {
-            currentHunks.Add(new Hunk
-            (
-                OldStart: oldStart,
-                OldLines: oldLines,
-                NewStart: newStart,
-                NewLines: newLines,
-                Content: string.Join("\n", currentHunkLines) + "\n"
-            ));
-        }
-
-        if (currentFileDiff != null)
-        {
-            currentFileDiff = currentFileDiff with { Hunks = currentHunks };
-            fileDiffs.Add(currentFileDiff);
-        }
+        FlushFile();
 
         var summary = $"{fileDiffs.Count} files changed";
         return new GitDiff(summary, fileDiffs);
+    }
+
+    /// <summary>
+    /// Extracts the (new) file path from a "diff --git a/X b/X" header. When the file was not renamed the
+    /// two halves are identical, which pins the path exactly even if it contains spaces; renames fall back
+    /// to the last " b/" marker. (The old TrimStart('a','/','b') ate leading a/b characters of the path
+    /// itself, e.g. "app/" became "pp/" and "bin/" became "in/".)
+    /// </summary>
+    private static string ParseDiffGitPath(string headerLine)
+    {
+        var header = headerLine["diff --git ".Length..];
+
+        var pathLength = (header.Length - 5) / 2;
+        if ((header.Length - 5) % 2 == 0 && pathLength > 0 &&
+            header.StartsWith("a/", StringComparison.Ordinal) &&
+            string.CompareOrdinal(header, 2, header, pathLength + 5, pathLength) == 0 &&
+            string.CompareOrdinal(header, pathLength + 2, " b/", 0, 3) == 0)
+        {
+            return header.Substring(2, pathLength);
+        }
+
+        var marker = header.LastIndexOf(" b/", StringComparison.Ordinal);
+        return marker >= 0 ? header[(marker + 3)..] : header;
     }
 
     private async Task<string> ResolveMergeBaseAsync(string fromRef, string toRef)
