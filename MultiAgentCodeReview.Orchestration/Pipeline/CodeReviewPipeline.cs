@@ -37,16 +37,20 @@ public class CodeReviewPipeline
         string repositoryPath,
         string commitHash,
         string? baseCommit = null,
+        IssueContext? issue = null,
         CancellationToken cancellationToken = default)
     {
         _logger?.LogInformation("Starting code review for {Repo} at {Commit}", repositoryPath, commitHash);
+        if (issue != null)
+            _logger?.LogInformation("Linked issue: {Owner}/{Repo}#{Number}", issue.Owner, issue.Repo, issue.Number);
 
         _logger?.LogInformation("Stage 1: Filtering relevant files...");
         var context = await _filterStage.ExecuteAsync(
             repositoryPath, commitHash, baseCommit,
             _config.Filtering.MaxFiles,
             _config.Filtering.MinFiles,
-            cancellationToken);
+            cancellationToken,
+            issue);
 
         _logger?.LogInformation("Filtered to {Count} relevant files", context.ChangedFiles.Count);
 

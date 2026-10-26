@@ -7,6 +7,7 @@ using MultiAgentCodeReview.Agents;
 using MultiAgentCodeReview.Core.Models;
 using MultiAgentCodeReview.Orchestration.DI;
 using MultiAgentCodeReview.Orchestration.Pipeline;
+using MultiAgentCodeReview.Orchestration.Tools;
 
 if (File.Exists(".env")) Env.Load(".env");
 else if (File.Exists("../.env")) Env.Load("../.env");
@@ -36,7 +37,7 @@ try
     switch (command)
     {
         case "review":
-            await RunReviewAsync(pipeline, args);
+            await RunReviewAsync(pipeline, app.Services.GetRequiredService<IGitHubIssueService>(), args);
             break;
         case "ask":
             await RunAskAsync(pipeline, args);
@@ -64,18 +65,19 @@ static void ShowHelp()
         Multi-Agent Code Review System
 
         Usage:
-          dotnet run -- review <repo-path> <commit-hash> [base-commit]
+          dotnet run -- review <repo-path> <commit-hash> [base-commit] [--issue <url|number>]
           dotnet run -- ask <repo-path> <commit-hash> <question>
           dotnet run -- docs <repo-path> <commit-hash> [base-commit]
 
         Commands:
-          review  Run full code review pipeline
+          review  Run full code review pipeline (--issue links a GitHub issue to focus the review)
           ask     Ask onboarding question about codebase (auto-runs review if needed)
           docs    Generate documentation (auto-runs review if needed)
 
         Environment Variables:
           MULTIAGENT_GROQ_API_KEY    Your Groq API key (required)
           MULTIAGENT_GROQ_BASE_URL   Groq API endpoint (default: https://api.groq.com/openai)
+          MULTIAGENT_GITHUB_TOKEN    Optional GitHub token, only needed for --issue on private repos
         """);
 }
 
@@ -129,11 +131,40 @@ static async Task<ReviewOutput> RunPipelineWithCacheAsync(
     return output;
 }
 
-static async Task RunReviewAsync(CodeReviewPipeline pipeline, string[] args)
+// Pulls "--issue <value>" / "--issue=<value>" out of the args so the existing positional
+// parsing (repo, commit, base) is unaffected when the flag is absent.
+static (string? Issue, string[] Remaining) ExtractIssueOption(string[] args)
 {
+    string? issue = null;
+    var rest = new List<string>();
+    for (var i = 0; i < args.Length; i++)
+    {
+        if (args[i] == "--issue")
+        {
+            if (i + 1 >= args.Length)
+                throw new ArgumentException("--issue requires a value (an issue URL or number).");
+            issue = args[++i];
+        }
+        else if (args[i].StartsWith("--issue=", StringComparison.Ordinal))
+        {
+            issue = args[i]["--issue=".Length..];
+        }
+        else
+        {
+            rest.Add(args[i]);
+        }
+    }
+    return (issue, rest.ToArray());
+}
+
+static async Task RunReviewAsync(CodeReviewPipeline pipeline, IGitHubIssueService issues, string[] args)
+{
+    var (issueRef, positional) = ExtractIssueOption(args);
+    args = positional;
+
     if (args.Length < 3)
     {
-        Console.WriteLine("Usage: review <repo-path> <commit-hash> [base-commit]");
+        Console.WriteLine("Usage: review <repo-path> <commit-hash> [base-commit] [--issue <url|number>]");
         return;
     }
 
@@ -144,7 +175,12 @@ static async Task RunReviewAsync(CodeReviewPipeline pipeline, string[] args)
     Console.WriteLine($"Starting code review for: {repoPath}");
     Console.WriteLine($"Commit: {commitHash}, Base: {baseCommit}");
 
-    var output = await pipeline.RunReviewAsync(repoPath, commitHash, baseCommit);
+    // Fetched before the pipeline runs: a bad/unreachable issue fails fast, before any LLM quota is spent.
+    var issue = await issues.GetIssueAsync(issueRef, repoPath);
+    if (issue != null)
+        Console.WriteLine($"Linked issue: #{issue.Number} {issue.Title}");
+
+    var output = await pipeline.RunReviewAsync(repoPath, commitHash, baseCommit, issue);
 
     var cache = new ReviewCache
     {

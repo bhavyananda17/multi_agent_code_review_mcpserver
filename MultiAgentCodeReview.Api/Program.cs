@@ -1,8 +1,10 @@
 using System.Diagnostics;
 using DotNetEnv;
+using MultiAgentCodeReview.Core.Models;
 using MultiAgentCodeReview.Orchestration.DI;
 using MultiAgentCodeReview.Orchestration.Pipeline;
 using MultiAgentCodeReview.Orchestration.Reporting;
+using MultiAgentCodeReview.Orchestration.Tools;
 
 // Same .env loading pattern as Host/McpServer: project dir first, then repo root.
 if (File.Exists(".env")) Env.Load(".env");
@@ -34,7 +36,7 @@ if (string.IsNullOrEmpty(apiKey))
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
-app.MapPost("/api/review", async Task<IResult> (HttpRequest http, ReviewRequest request, CodeReviewPipeline pipeline) =>
+app.MapPost("/api/review", async Task<IResult> (HttpRequest http, ReviewRequest request, CodeReviewPipeline pipeline, IGitHubIssueService issues) =>
 {
     if (!string.IsNullOrEmpty(apiKey) &&
         !string.Equals(http.Headers["X-Api-Key"].FirstOrDefault(), apiKey, StringComparison.Ordinal))
@@ -63,8 +65,20 @@ app.MapPost("/api/review", async Task<IResult> (HttpRequest http, ReviewRequest 
         if (exitCode != 0)
             return Results.BadRequest($"git clone failed: {gitError}");
 
+        // Optional issue link. A bad reference is the caller's mistake (400); an unreachable or
+        // unauthorised issue surfaces via the generic handler below. Fetched before any LLM call.
+        IssueContext? issue;
+        try
+        {
+            issue = await issues.GetIssueAsync(request.Issue, tempDir);
+        }
+        catch (ArgumentException ex)
+        {
+            return Results.BadRequest(ex.Message);
+        }
+
         // Same pipeline entry point CodeReviewMcpTools.ReviewRepo uses.
-        var output = await pipeline.RunReviewAsync(tempDir, commitHash, baseCommit);
+        var output = await pipeline.RunReviewAsync(tempDir, commitHash, baseCommit, issue);
 
         var wantsJson = http.Headers.Accept.Any(a =>
             a?.Contains("application/json", StringComparison.OrdinalIgnoreCase) == true);
@@ -123,4 +137,4 @@ void TryDeleteDirectory(string path)
     }
 }
 
-public record ReviewRequest(string? RepoUrl, string? CommitHash, string? BaseCommit);
+public record ReviewRequest(string? RepoUrl, string? CommitHash, string? BaseCommit, string? Issue = null);

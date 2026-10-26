@@ -14,6 +14,7 @@ public class CodeReviewMcpTools
     private readonly CodeReviewPipeline _pipeline;
     private readonly AgentFactory _agentFactory;
     private readonly IRepositorySourceResolver _resolver;
+    private readonly IGitHubIssueService _issues;
     // Keyed by the caller-supplied repo_path/repoUrl string, NOT the resolved (possibly
     // temp) path — a URL clones to a fresh temp dir every call, so keying by the resolved
     // path would mean ask_codebase/generate_docs could never hit the cache after review_repo
@@ -24,11 +25,12 @@ public class CodeReviewMcpTools
     private static readonly Dictionary<string, ReviewOutput> _pipelineCache = new();
     private const string ReportFileName = ".codereview/last_report.md";
 
-    public CodeReviewMcpTools(CodeReviewPipeline pipeline, AgentFactory agentFactory, IRepositorySourceResolver resolver)
+    public CodeReviewMcpTools(CodeReviewPipeline pipeline, AgentFactory agentFactory, IRepositorySourceResolver resolver, IGitHubIssueService issues)
     {
         _pipeline = pipeline;
         _agentFactory = agentFactory;
         _resolver = resolver;
+        _issues = issues;
     }
 
     [McpServerTool]
@@ -36,7 +38,8 @@ public class CodeReviewMcpTools
     public async Task<string> ReviewRepo(
         [Description("Absolute path to the git repo on disk, or a git clone URL (https:// or git@) for remote use")] string repo_path,
         [Description("The commit to review (HEAD, sha, branch name)")] string commit_hash,
-        [Description("Base to diff against (defaults to commit_hash~1)")] string base_commit = "")
+        [Description("Base to diff against (defaults to commit_hash~1)")] string base_commit = "",
+        [Description("Optional GitHub issue this change relates to: a full issue URL (https://github.com/owner/repo/issues/123) or a number such as 123 or #123, resolved against the repo's origin remote. Biases which specialist agents run and which files are prioritised. Leave empty for a plain commit review.")] string issue = "")
     {
         await using var resolved = await _resolver.ResolveAsync(repo_path);
         var localPath = resolved.Path;
@@ -48,13 +51,17 @@ public class CodeReviewMcpTools
         var reportPath = Path.Combine(reportDir, "last_report.md");
         var metaPath = Path.Combine(reportDir, "last_report.meta.json");
 
-        if (File.Exists(reportPath) && File.Exists(metaPath))
+        // A cached report is keyed by commit only, so it can only stand in for a plain commit review.
+        // Issue-linked requests always re-run (the issue may have been edited) and record the issue in
+        // the meta file so a later plain request for the same commit can't be served an issue-biased report.
+        var hasIssue = !string.IsNullOrWhiteSpace(issue);
+        if (!hasIssue && File.Exists(reportPath) && File.Exists(metaPath))
         {
             try
             {
                 var metaJson = await File.ReadAllTextAsync(metaPath);
                 var meta = JsonSerializer.Deserialize<ReportMeta>(metaJson);
-                if (meta?.CommitHash == commit_hash)
+                if (meta?.CommitHash == commit_hash && string.IsNullOrEmpty(meta.Issue))
                 {
                     return await File.ReadAllTextAsync(reportPath);
                 }
@@ -62,7 +69,10 @@ public class CodeReviewMcpTools
             catch { /* fall through to re-run pipeline */ }
         }
 
-        var output = await _pipeline.RunReviewAsync(localPath, commit_hash, string.IsNullOrWhiteSpace(base_commit) ? null : base_commit);
+        // Fetch first: a bad or unreachable issue fails fast, before any LLM call is made.
+        var issueContext = await _issues.GetIssueAsync(issue, localPath);
+
+        var output = await _pipeline.RunReviewAsync(localPath, commit_hash, string.IsNullOrWhiteSpace(base_commit) ? null : base_commit, issueContext);
 
         _pipelineCache[repo_path] = output;
 
@@ -79,7 +89,7 @@ public class CodeReviewMcpTools
 
         Directory.CreateDirectory(reportDir);
         await File.WriteAllTextAsync(reportPath, report);
-        await File.WriteAllTextAsync(metaPath, JsonSerializer.Serialize(new ReportMeta { CommitHash = commit_hash }));
+        await File.WriteAllTextAsync(metaPath, JsonSerializer.Serialize(new ReportMeta { CommitHash = commit_hash, Issue = hasIssue ? issue : "" }));
 
         return report;
     }
@@ -148,5 +158,6 @@ public class CodeReviewMcpTools
     private sealed class ReportMeta
     {
         public string CommitHash { get; set; } = string.Empty;
+        public string Issue { get; set; } = string.Empty;
     }
 }

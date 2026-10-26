@@ -321,6 +321,17 @@ dotnet run --project MultiAgentCodeReview.Host -- review <repo-path> <commit-has
 dotnet run --project MultiAgentCodeReview.Host -- docs <repo-path> <commit-hash> [base-commit]
 ```
 
+**Linking a GitHub issue (optional):** add `--issue <url|number>` to `review` to bias the review towards what the issue describes.
+
+```bash
+# Full URL (works for any github.com repo)
+dotnet run --project MultiAgentCodeReview.Host -- review <repo-path> HEAD --issue https://github.com/owner/repo/issues/123
+# Bare number: owner/repo is taken from the checkout's `origin` remote
+dotnet run --project MultiAgentCodeReview.Host -- review <repo-path> HEAD --issue 123
+```
+
+The issue title/body/labels are fetched from the GitHub REST API (no token needed for public repos; set `MULTIAGENT_GITHUB_TOKEN` for private ones). The Triage agent uses the issue to choose specialists, and the Filter stage ranks issue-relevant files first so they survive the file cap and reach the specialists before diff truncation. Without `--issue` the pipeline behaves exactly as before. The MCP `review_repo` tool takes the same value as an optional `issue` argument, and `POST /api/review` accepts an optional `issue` field.
+
 ### Option 2: MCP Server (OpenCode)
 
 ```bash
@@ -406,6 +417,7 @@ All settings via environment variables (prefix `MULTIAGENT_`):
 | `MODEL_<ROLE>` | Override model per role (e.g., `MODEL_SECURITY`) | Role-specific |
 | `MODEL_<ROLE>_TEMP` | Temperature override | Role-specific |
 | `MODEL_<ROLE>_TOKENS` | Max tokens override | Role-specific |
+| `GITHUB_TOKEN` | Optional GitHub token, only for `--issue` on private repos (also read as `MULTIAGENT_GITHUB_TOKEN`) | — |
 
 Example `.env`:
 ```bash

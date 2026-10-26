@@ -20,7 +20,8 @@ public class FilterStage
         string? baseCommit,
         int maxFiles = 30,
         int minFiles = 5,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IssueContext? issue = null)
     {
         var fromRef = baseCommit ?? $"{commitHash}~1";
         var git = new Tools.GitOperationsTool(repositoryPath);
@@ -41,6 +42,16 @@ public class FilterStage
             diff.Files.Where(f => sourceExtensions.Contains(Path.GetExtension(f.Path))).ToList()
         );
 
+        // Optional issue-aware ordering. Both lists are reordered (stable) so that issue-relevant files
+        // (a) win the maxFiles cap and are expanded first in the dependency walk, and (b) have their
+        // diffs placed first, ahead of the specialists' diff-size truncation. Without an issue this
+        // block is skipped and the order is exactly what git returned.
+        if (issue != null)
+        {
+            changedFiles = IssueRelevanceScorer.RankPaths(changedFiles, filteredDiff, issue);
+            filteredDiff = filteredDiff with { Files = IssueRelevanceScorer.RankDiffs(filteredDiff, issue) };
+        }
+
         var dependencyGraph = await BuildDependencyGraphAsync(changedFiles, repositoryPath, cancellationToken);
         var filteredFiles = FilterRelevantFiles(changedFiles, dependencyGraph, filteredDiff, maxFiles, minFiles);
 
@@ -50,7 +61,8 @@ public class FilterStage
             BaseCommit: baseCommit,
             ChangedFiles: filteredFiles,
             Diff: filteredDiff,
-            DependencyGraph: dependencyGraph
+            DependencyGraph: dependencyGraph,
+            Issue: issue
         );
     }
 

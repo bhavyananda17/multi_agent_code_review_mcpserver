@@ -41,6 +41,10 @@ public static class ServiceCollectionExtensions
         services.AddTransient<IGitOperationsTool, GitOperationsTool>();
         services.AddSingleton<ICodeAnalysisTool, CodeAnalysisTool>();
         services.AddTransient<IRepositorySourceResolver, RepositorySourceResolver>();
+        services.AddHttpClient<IGitHubIssueService, GitHubIssueService>(client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(15);
+        });
 
         services.AddTransient<FilterStage>();
         services.AddTransient<CodeReviewPipeline>();
@@ -51,6 +55,8 @@ public static class ServiceCollectionExtensions
         {
             builder.AddConsole();
             builder.SetMinimumLevel(LogLevel.Information);
+            // IHttpClientFactory logs a Start/End line per request at Information; not useful in CLI output.
+            builder.AddFilter("System.Net.Http.HttpClient", LogLevel.Warning);
         });
 
         return services;
@@ -64,6 +70,11 @@ public static class ServiceCollectionExtensions
 
         options.BaseUrl = config["BASE_URL"]
             ?? "https://api.groq.com/openai";
+
+        // Optional: only needed for issues in private repos (or a higher rate limit).
+        options.GitHub.Token = config["GITHUB_TOKEN"]
+            ?? Environment.GetEnvironmentVariable("GITHUB_TOKEN")
+            ?? "";
 
         var modelRoles = new[]
         {

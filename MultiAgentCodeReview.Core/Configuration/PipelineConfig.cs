@@ -21,6 +21,16 @@ public class PipelineConfig
     public FilterConfig Filtering { get; set; } = new();
     public RagConfig Rag { get; set; } = new();
     public OutputConfig Output { get; set; } = new();
+    public GitHubConfig GitHub { get; set; } = new();
+}
+
+public class GitHubConfig
+{
+    /// <summary>
+    /// Optional. Only needed to read issues from private repos (or to lift the 60 req/hr
+    /// unauthenticated rate limit). Sent solely to api.github.com. Never logged.
+    /// </summary>
+    public string Token { get; set; } = "";
 }
 
 public class StageConfig

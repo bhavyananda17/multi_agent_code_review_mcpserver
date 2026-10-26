@@ -22,6 +22,8 @@ public static class ReportFormatter
         sb.AppendLine($"**Repository:** {output.Context.RepositoryPath}");
         sb.AppendLine($"**Commit:** {output.Context.CommitHash}");
         sb.AppendLine($"**Base:** {output.Context.BaseCommit ?? "HEAD~1"}");
+        if (output.Context.Issue is { } issue)
+            sb.AppendLine($"**Linked issue:** #{issue.Number} {issue.Title} ({issue.Owner}/{issue.Repo})");
         sb.AppendLine($"**Total Findings:** {findings?.Count ?? 0}");
         sb.AppendLine();
 
