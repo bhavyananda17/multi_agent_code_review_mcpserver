@@ -347,6 +347,38 @@ See [MCP_SETUP.md](MCP_SETUP.md) for detailed MCP configuration.
 
 ---
 
+## Benchmarking
+
+`bench` runs the full pipeline over a CSV of real commits and scores its findings against what human reviewers actually wrote on them.
+
+```bash
+dotnet run --project MultiAgentCodeReview.Host -- bench prs.csv [--out results.json] [--md summary.md] \
+    [--threshold 0.25] [--one-to-one] [--include-low-confidence]
+```
+
+**Input CSV**: one row per PR, three columns (a header row is optional; with one, columns can be in any order and named `repo_url`, `commit_sha`, `findings`):
+
+```csv
+repo_url,commit_sha,findings
+https://github.com/owner/repo,3f2a9c1d,"SQL built by string concatenation | missing null check on user"
+https://github.com/owner/other,9b8e7d6c,"[""Blocking .Result call"", ""Method does too much, split it""]"
+```
+
+The `findings` cell is one CSV field (quote it if it contains commas). Separate the human findings with `|` or newlines, or give a JSON array of strings. Every row is validated before anything runs, so a typo on row 40 fails immediately instead of after 39 reviews. Repos must be git URLs; each is cloned once into a temp dir, and the commit is checked out before every review so the pipeline sees the files as they were at that commit. The commit needs a parent (the diff is `<sha>~1..<sha>`).
+
+**Matching**: a pipeline finding matches a human finding when their wording overlaps: both are split into lower-cased, stop-word-filtered, lightly stemmed tokens (camelCase aware) and compared with the Dice coefficient (default threshold `0.25`, at least 2 shared tokens). A finding is compared as "category + description" and as "category + description + recommendation", whichever scores higher, because reviewers often state the fix too.
+
+- **Precision** = pipeline findings matching any human finding ÷ pipeline findings. **Recall** = human findings matched by any pipeline finding ÷ human findings. **F1** = their harmonic mean. A PR with no pipeline findings scores precision 0.
+- By default one finding can match several comments (so duplicates can inflate precision); `--one-to-one` pairs each finding on either side at most once.
+- By default only findings the report would show are scored; `--include-low-confidence` also scores those the self-evaluation stage flagged.
+- Aggregates are given both **macro** (mean of per-PR numbers) and **micro** (pooled counts). Rows that fail (clone error, unknown SHA, pipeline error) are listed and left out of the averages.
+
+**Output**: `results.json` (per-PR metrics, every match with its similarity score, unmatched findings on both sides, timings, and the settings used) and `summary.md` (table + definitions). Both are rewritten after every row, and Ctrl+C stops cleanly and keeps the finished rows.
+
+Matching is lexical overlap, not understanding: it misses paraphrases and can pair unrelated comments that share vocabulary. Read the `matches` in the JSON before trusting a number, and remember that valid findings the reviewers didn't mention count as false positives. Each row runs the real pipeline, so a benchmark costs real LLM quota.
+
+---
+
 ## Deployment
 
 Two live cloud deployments run alongside local/stdio usage, each covering a different slice of the system:

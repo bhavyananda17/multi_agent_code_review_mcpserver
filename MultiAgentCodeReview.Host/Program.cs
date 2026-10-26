@@ -1,10 +1,12 @@
-﻿using System.Text.Json;
+﻿using System.Globalization;
+using System.Text.Json;
 using DotNetEnv;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using MultiAgentCodeReview.Agents;
 using MultiAgentCodeReview.Core.Models;
+using MultiAgentCodeReview.Orchestration.Benchmarking;
 using MultiAgentCodeReview.Orchestration.DI;
 using MultiAgentCodeReview.Orchestration.Pipeline;
 using MultiAgentCodeReview.Orchestration.Tools;
@@ -45,6 +47,9 @@ try
         case "docs":
             await RunDocsAsync(pipeline, args);
             break;
+        case "bench":
+            await RunBenchAsync(app.Services.GetRequiredService<BenchmarkRunner>(), args);
+            break;
         default:
             Console.WriteLine($"Unknown command: {command}");
             ShowHelp();
@@ -68,11 +73,14 @@ static void ShowHelp()
           dotnet run -- review <repo-path> <commit-hash> [base-commit] [--issue <url|number>]
           dotnet run -- ask <repo-path> <commit-hash> <question>
           dotnet run -- docs <repo-path> <commit-hash> [base-commit]
+          dotnet run -- bench <input.csv> [--out results.json] [--md summary.md] [--threshold 0.25]
+                              [--one-to-one] [--include-low-confidence]
 
         Commands:
           review  Run full code review pipeline (--issue links a GitHub issue to focus the review)
           ask     Ask onboarding question about codebase (auto-runs review if needed)
           docs    Generate documentation (auto-runs review if needed)
+          bench   Run the pipeline over a CSV of (repo URL, commit SHA, human findings) and report precision/recall/F1
 
         Environment Variables:
           MULTIAGENT_GROQ_API_KEY    Your Groq API key (required)
@@ -248,6 +256,109 @@ static async Task RunAskAsync(CodeReviewPipeline pipeline, string[] args)
 
     Console.WriteLine("\n========== ANSWER ==========");
     Console.WriteLine(answer);
+}
+
+static async Task RunBenchAsync(BenchmarkRunner runner, string[] args)
+{
+    string? csvPath = null, outPath = null, mdPath = null;
+    var options = new BenchmarkOptions();
+
+    for (var i = 1; i < args.Length; i++)
+    {
+        var arg = args[i];
+        string? inline = null;
+        var eq = arg.StartsWith("--", StringComparison.Ordinal) ? arg.IndexOf('=') : -1;
+        if (eq > 0)
+        {
+            inline = arg[(eq + 1)..];
+            arg = arg[..eq];
+        }
+
+        string Value() => inline ?? (i + 1 < args.Length ? args[++i] : throw new ArgumentException($"{arg} requires a value."));
+
+        switch (arg)
+        {
+            case "--out": outPath = Value(); break;
+            case "--md": mdPath = Value(); break;
+            case "--threshold":
+                if (!double.TryParse(Value(), NumberStyles.Float, CultureInfo.InvariantCulture, out var threshold) || threshold <= 0 || threshold > 1)
+                    throw new ArgumentException("--threshold must be a number greater than 0 and at most 1.");
+                options.SimilarityThreshold = threshold;
+                break;
+            case "--one-to-one": options.OneToOne = true; break;
+            case "--include-low-confidence": options.IncludeLowConfidence = true; break;
+            default:
+                if (arg.StartsWith("--", StringComparison.Ordinal))
+                    throw new ArgumentException($"Unknown option '{arg}'.");
+                if (csvPath != null)
+                    throw new ArgumentException($"Unexpected argument '{arg}'.");
+                csvPath = arg;
+                break;
+        }
+    }
+
+    if (csvPath == null)
+    {
+        Console.WriteLine("Usage: bench <input.csv> [--out results.json] [--md summary.md] [--threshold 0.25] [--one-to-one] [--include-low-confidence]");
+        return;
+    }
+    if (!File.Exists(csvPath))
+        throw new FileNotFoundException($"CSV file not found: {csvPath}");
+
+    outPath ??= "bench-results.json";
+    mdPath ??= Path.ChangeExtension(outPath, ".md");
+    if (string.Equals(Path.GetFullPath(outPath), Path.GetFullPath(mdPath), StringComparison.Ordinal))
+        throw new ArgumentException("--out and --md must be different files.");
+
+    // Validates every row up front, so a typo on row 40 fails now rather than after 39 paid-for reviews.
+    var rows = BenchmarkCsv.ParseRows(await File.ReadAllTextAsync(csvPath));
+
+    Console.WriteLine($"Benchmark: {rows.Count} row(s) from {csvPath}");
+    Console.WriteLine("Each row clones the repo and runs the full pipeline (often a minute or more per PR).");
+    Console.WriteLine("Ctrl+C stops cleanly and keeps the partial results; a second Ctrl+C force-quits.\n");
+
+    using var cts = new CancellationTokenSource();
+    ConsoleCancelEventHandler onCancel = (_, e) =>
+    {
+        if (cts.IsCancellationRequested)
+            return; // second Ctrl+C: let the process die
+        e.Cancel = true;
+        cts.Cancel();
+        Console.WriteLine("\nInterrupted: cleaning up and writing partial results...");
+    };
+    Console.CancelKeyPress += onCancel;
+
+    try
+    {
+        // Rewritten after every row, so a crash or Ctrl+C never loses finished work.
+        var result = await runner.RunAsync(rows, options, Console.WriteLine,
+            partial => WriteBenchOutputs(partial, outPath, mdPath), cts.Token);
+        WriteBenchOutputs(result, outPath, mdPath);
+
+        Console.WriteLine();
+        Console.WriteLine(BenchmarkReportWriter.ToMarkdown(result));
+        Console.WriteLine($"Results JSON:     {Path.GetFullPath(outPath)}");
+        Console.WriteLine($"Markdown summary: {Path.GetFullPath(mdPath)}");
+
+        if (result.Aggregate.Succeeded == 0)
+            Environment.ExitCode = 1;
+    }
+    finally
+    {
+        Console.CancelKeyPress -= onCancel;
+    }
+}
+
+static void WriteBenchOutputs(BenchmarkResult result, string jsonPath, string mdPath)
+{
+    foreach (var path in new[] { jsonPath, mdPath })
+    {
+        var dir = Path.GetDirectoryName(Path.GetFullPath(path));
+        if (!string.IsNullOrEmpty(dir))
+            Directory.CreateDirectory(dir);
+    }
+    File.WriteAllText(jsonPath, BenchmarkReportWriter.ToJson(result));
+    File.WriteAllText(mdPath, BenchmarkReportWriter.ToMarkdown(result));
 }
 
 static async Task RunDocsAsync(CodeReviewPipeline pipeline, string[] args)

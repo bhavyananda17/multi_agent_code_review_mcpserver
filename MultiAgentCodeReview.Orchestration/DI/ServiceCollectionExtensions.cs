@@ -7,6 +7,7 @@ using MultiAgentCodeReview.Core.Interfaces;
 using MultiAgentCodeReview.Core.Models;
 using MultiAgentCodeReview.Core.RateLimiting;
 using MultiAgentCodeReview.Agents;
+using MultiAgentCodeReview.Orchestration.Benchmarking;
 using MultiAgentCodeReview.Orchestration.Pipeline;
 using MultiAgentCodeReview.Orchestration.Tools;
 
@@ -49,6 +50,8 @@ public static class ServiceCollectionExtensions
 
         services.AddTransient<FilterStage>();
         services.AddTransient<EvaluationStage>();
+        services.AddTransient<IBenchmarkRepoProvider, GitRepoProvider>();
+        services.AddTransient<BenchmarkRunner>();
         services.AddTransient<CodeReviewPipeline>();
 
         services.AddSingleton<AgentFactory>();
