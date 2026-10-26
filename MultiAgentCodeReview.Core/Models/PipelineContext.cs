@@ -11,7 +11,8 @@ public record PipelineContext(
     DependencyGraph? DependencyGraph,
     Dictionary<string, string>? Metadata = null,
     IssueContext? Issue = null,
-    EvaluationSummary? EvaluationSummary = null
+    EvaluationSummary? EvaluationSummary = null,
+    CodeAnalysisReport? CodeAnalysis = null
 );
 
 public record ChangedFile(

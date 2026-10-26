@@ -76,6 +76,9 @@ public static class ServiceCollectionExtensions
         options.BaseUrl = config["BASE_URL"]
             ?? "https://api.groq.com/openai";
 
+        if (bool.TryParse(config["STATIC_ANALYSIS"], out var staticAnalysis))
+            options.Filtering.StaticAnalysis = staticAnalysis;
+
         // Self-evaluation stage (all optional; defaults live on EvaluationConfig).
         if (bool.TryParse(config["EVAL_ENABLED"], out var evalEnabled))
             options.Evaluation.Enabled = evalEnabled;

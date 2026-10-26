@@ -53,7 +53,8 @@ public class CodeReviewPipeline
             _config.Filtering.MaxFiles,
             _config.Filtering.MinFiles,
             cancellationToken,
-            issue);
+            issue,
+            _config.Filtering.StaticAnalysis);
 
         _logger?.LogInformation("Filtered to {Count} relevant files", context.ChangedFiles.Count);
 

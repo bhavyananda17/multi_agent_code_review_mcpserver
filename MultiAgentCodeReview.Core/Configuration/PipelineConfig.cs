@@ -62,6 +62,9 @@ public class FilterConfig
     public int MinFiles { get; set; } = 5;
     public bool UseDependencyGraph { get; set; } = true;
     public bool IncludeTests { get; set; } = false;
+
+    /// <summary>Runs the Roslyn complexity / call-site / code-smell pass on touched methods and hands it to the specialists.</summary>
+    public bool StaticAnalysis { get; set; } = true;
 }
 
 public class RagConfig

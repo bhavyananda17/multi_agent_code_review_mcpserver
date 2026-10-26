@@ -21,7 +21,8 @@ public class FilterStage
         int maxFiles = 30,
         int minFiles = 5,
         CancellationToken cancellationToken = default,
-        IssueContext? issue = null)
+        IssueContext? issue = null,
+        bool runStaticAnalysis = true)
     {
         var fromRef = baseCommit ?? $"{commitHash}~1";
         var git = new Tools.GitOperationsTool(repositoryPath);
@@ -55,6 +56,12 @@ public class FilterStage
         var dependencyGraph = await BuildDependencyGraphAsync(changedFiles, repositoryPath, cancellationToken);
         var filteredFiles = FilterRelevantFiles(changedFiles, dependencyGraph, filteredDiff, maxFiles, minFiles);
 
+        // Roslyn complexity / call sites / smells for the methods this commit touched; carried on the context
+        // so each specialist can be given the slice that is relevant to it.
+        var analysis = runStaticAnalysis
+            ? await ChangeAnalyzer.AnalyzeAsync(_codeAnalysis, repositoryPath, filteredDiff, cancellationToken)
+            : null;
+
         return new PipelineContext(
             RepositoryPath: repositoryPath,
             CommitHash: commitHash,
@@ -62,7 +69,8 @@ public class FilterStage
             ChangedFiles: filteredFiles,
             Diff: filteredDiff,
             DependencyGraph: dependencyGraph,
-            Issue: issue
+            Issue: issue,
+            CodeAnalysis: analysis
         );
     }
 

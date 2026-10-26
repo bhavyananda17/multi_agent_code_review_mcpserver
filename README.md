@@ -130,12 +130,22 @@ graph LR
 
 | Stage | What it does | Key implementation |
 |-------|-------------|-------------------|
-| **Filter** | Git diff + Roslyn dependency graph → source files only | `FilterStage.cs` — excludes `.md`, `.json`, `.xml`, etc. |
+| **Filter** | Git diff + Roslyn dependency graph → source files only; also runs Roslyn complexity / call-site / code-smell analysis on the methods the diff touches | `FilterStage.cs`, `ChangeAnalyzer.cs` — excludes `.md`, `.json`, `.xml`, etc. |
 | **Triage** | 8B model classifies diff, routes to 1-3 specialists | `TriageAgent.cs` — outputs `{"selected_agents":[...]}` |
 | **Specialists** | 3 agents launched in parallel via `Task.WhenAll`, staggered 15s apart | Staggered to respect Groq free-tier rate limits (30 RPM / 12K TPM); each agent works on the 70B model through Groq API |
 | **Dedup** | C# code merges findings, boosts cross-agent agreement | `CodeReviewPipeline.cs` — no LLM call needed |
 | **Self-eval** | An LLM scores each deduplicated finding 1–3 on relevance, severity accuracy and actionability; totals below the threshold (default 5/9) are flagged low-confidence and shown in a separate report section (or dropped). Fails open: unscored findings are reported as-is | `EvaluationStage.cs`, `EvalAgent.cs` — batches of 8 findings per call |
 | **ModernizationQuick** | Quick-scan for outdated patterns and legacy APIs | `ModernizationQuickAgent.cs` — 8B model, runs after the pipeline via the `review_repo` MCP tool |
+
+**Static analysis context.** The Filter stage works out which methods the diff touches (from the hunks' line numbers), then calls the Roslyn `CodeAnalysisTool` for just those: `GetCyclomaticComplexityAsync`, `FindCallersAsync` and `DetectCodeSmellsAsync`. The results are stored on `PipelineContext.CodeAnalysis` and each specialist gets the slice that is relevant to it, appended after the diff (about 350 tokens at most):
+
+| Specialist | Gets |
+|---|---|
+| Logic | complexity of touched methods (5+), same-file callers, long-method / large-class / duplicated-code / async-void smells |
+| Performance | complexity of 10+, same-file callers, async-void and long-method smells |
+| Security | same-file callers only (how exposed a changed method is) |
+
+Limits worth knowing: callers are found **within the same file only** (the tool builds a one-file compilation, so a call from another file cannot be resolved); complexity and callers are skipped for overloaded method names (the tool resolves a name to the first overload) and noted in `CodeAnalysis.Notes`; at most 20 files and 25 methods are analysed per review. Smells are limited to the touched code, not the whole file. Turn it off with `MULTIAGENT_STATIC_ANALYSIS=false`.
 
 ---
 
@@ -452,6 +462,7 @@ All settings via environment variables (prefix `MULTIAGENT_`):
 | `MODEL_<ROLE>_TOKENS` | Max tokens override | Role-specific |
 | `GITHUB_TOKEN` | Optional GitHub token, only for `--issue` on private repos (also read as `MULTIAGENT_GITHUB_TOKEN`) | — |
 | `MODEL_EVAL` | Model for the self-evaluation judge (falls back to `MODEL_SYNTHESIS`, then the built-in default) | Role-specific |
+| `STATIC_ANALYSIS` | Run the Roslyn complexity / call-site / smell pass and give the specialists the results | `true` |
 | `EVAL_ENABLED` | Run the self-evaluation stage | `true` |
 | `EVAL_THRESHOLD` | Findings with total score below this (0–9) are flagged low-confidence | `5` |
 | `EVAL_EXCLUDE_LOW_CONFIDENCE` | `true` drops flagged findings; `false` lists them in a separate section | `false` |

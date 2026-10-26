@@ -6,8 +6,24 @@ using System.Text.Json;
 
 namespace MultiAgentCodeReview.Agents;
 
+/// <summary>Which slice of the Roslyn analysis a specialist gets.</summary>
+public enum AnalysisFocus
+{
+    Logic,
+    Performance,
+    Security
+}
+
 public abstract class BaseSpecialistAgent : MultiAgentCodeReview.Core.Interfaces.ISpecialistAgent
 {
+    /// <summary>Keeps the analysis block inside the free-tier token budget (~350 tokens).</summary>
+    public const int MaxAnalysisChars = 1400;
+
+    private const int ComplexityThreshold = 10;
+
+    /// <summary>Methods simpler than this are noise in the Logic agent's prompt budget (Performance uses the threshold itself).</summary>
+    private const int LogicComplexityFloor = 5;
+
     protected readonly IAgent _agent;
     protected readonly string _agentName;
 
@@ -177,6 +193,71 @@ public abstract class BaseSpecialistAgent : MultiAgentCodeReview.Core.Interfaces
         return "";
     }
 
+    /// <summary>
+    /// The part of <see cref="PipelineContext.CodeAnalysis"/> that is relevant to <paramref name="focus"/>, as a
+    /// prompt block; empty (so the prompt is unchanged) when there is nothing to say.
+    /// Logic gets complexity, callers and all smells; Performance gets only high-complexity methods, callers and
+    /// the async-void / long-method smells; Security gets only callers (how exposed a changed method is).
+    /// </summary>
+    public static string BuildAnalysisContext(PipelineContext context, AnalysisFocus focus)
+    {
+        var report = context.CodeAnalysis;
+        if (report == null)
+            return "";
+
+        var sections = new List<string>();
+
+        var complexityFloor = focus == AnalysisFocus.Logic ? LogicComplexityFloor : ComplexityThreshold;
+        var complexity = report.Complexity
+            .Where(c => focus != AnalysisFocus.Security && c.Complexity >= complexityFloor)
+            .OrderByDescending(c => c.Complexity)
+            .Select(c => $"- {c.FilePath}: {ShortName(c.MethodName)} (line {c.StartLine}) = {c.Complexity}" +
+                         (c.Complexity > ComplexityThreshold ? $" (over {ComplexityThreshold})" : ""))
+            .ToList();
+        if (complexity.Count > 0)
+            sections.Add($"Cyclomatic complexity of touched methods (only {complexityFloor}+ shown; threshold {ComplexityThreshold}):\n" + string.Join("\n", complexity));
+
+        var callers = report.CallSites
+            .OrderByDescending(c => c.Callers.Count)
+            .Select(c => $"- {c.FilePath}: {ShortName(c.MethodName)} (line {c.StartLine}) is called by " +
+                         string.Join(", ", c.Callers.Take(4).Select(x => $"{ShortName(x.CallingMethod)} (line {x.Line})")) +
+                         (c.Callers.Count > 4 ? $" and {c.Callers.Count - 4} more" : ""))
+            .ToList();
+        if (callers.Count > 0)
+            sections.Add("Callers within the same file (callers in OTHER files are not detected, so no entry here does not mean unused):\n" + string.Join("\n", callers));
+
+        var smells = report.CodeSmells
+            .Where(s => focus == AnalysisFocus.Logic || (focus == AnalysisFocus.Performance && (s.Type is "AsyncVoid" or "LongMethod")))
+            .OrderBy(s => s.Severity)
+            .Select(s => $"- [{s.Severity}] {s.Type} at {s.FilePath}:{s.Line}: {Clip(s.Description, 160)}")
+            .ToList();
+        if (smells.Count > 0)
+            sections.Add("Code smells in the touched code:\n" + string.Join("\n", smells));
+
+        if (sections.Count == 0)
+            return "";
+
+        var block = "Static analysis (measured by a Roslyn pass over the methods this change touches; treat as facts and prefer them to your own estimates):\n"
+                    + string.Join("\n", sections);
+        return block.Length > MaxAnalysisChars ? block[..MaxAnalysisChars] + "\n... [static analysis truncated]" : block;
+    }
+
+    // Appended AFTER the diff is built: validLines (the line numbers a finding may cite) come from the diff
+    // text alone, so nothing in the analysis block can widen what the model is allowed to point at.
+    protected static void AppendAnalysis(System.Text.StringBuilder sb, PipelineContext context, AnalysisFocus focus)
+    {
+        var block = BuildAnalysisContext(context, focus);
+        if (block.Length > 0)
+        {
+            sb.AppendLine(block);
+            sb.AppendLine();
+        }
+    }
+
+    private static string ShortName(string identifier) => Clip(identifier, 80);
+
+    private static string Clip(string text, int max) => text.Length > max ? text[..max] + "..." : text;
+
     protected static string BuildContextSummary(PipelineContext context)
     {
         var sb = new System.Text.StringBuilder();
@@ -345,6 +426,7 @@ public class SecurityAgent : BaseSpecialistAgent
         sb.AppendLine(BuildContextSummary(context));
         var (diffContent, validLines) = BuildDiffContent(context);
         sb.AppendLine(diffContent);
+        AppendAnalysis(sb, context, AnalysisFocus.Security);
         sb.AppendLine("Focus on: SQL injection, XSS, auth bypass, sensitive data exposure, crypto weaknesses, input validation, dependency vulnerabilities.");
         sb.AppendLine("Return JSON with findings array and summary.");
         return (sb.ToString(), validLines);
@@ -365,6 +447,7 @@ public class PerformanceAgent : BaseSpecialistAgent
         sb.AppendLine(BuildContextSummary(context));
         var (diffContent, validLines) = BuildDiffContent(context);
         sb.AppendLine(diffContent);
+        AppendAnalysis(sb, context, AnalysisFocus.Performance);
         sb.AppendLine("Focus: N+1 queries, missing indexes, SELECT *, queries in loops, no pagination, blocking calls (.Result/.Wait()), async void, memory leaks, large allocations, string concat in loops, O(n2) algorithms, repeated LINQ, missing caching.");
         sb.AppendLine("Quantify impact: 'Adds 200ms', 'N+1: 1+N queries instead of 1'. Return JSON with findings, impact estimates, optimized code examples.");
         return (sb.ToString(), validLines);
@@ -385,6 +468,7 @@ public class LogicAgent : BaseSpecialistAgent
         sb.AppendLine(BuildContextSummary(context));
         var (diffContent, validLines) = BuildDiffContent(context);
         sb.AppendLine(diffContent);
+        AppendAnalysis(sb, context, AnalysisFocus.Logic);
         sb.AppendLine("Focus on: Logic errors, null reference risks, unhandled exceptions, edge cases, complexity >10, code smells, SOLID violations, poor naming, swallowed exceptions, missing validation, testability, duplicated code.");
         sb.AppendLine("Quantify: 'cyclomatic complexity of 15 (target <10)', 'method spans 120 lines (max 50)'. Return JSON with findings array and summary.");
         return (sb.ToString(), validLines);
