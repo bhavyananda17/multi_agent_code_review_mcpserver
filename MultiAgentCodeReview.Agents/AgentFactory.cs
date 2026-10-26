@@ -69,6 +69,21 @@ public class AgentFactory
         return new OnboardingAgent(agent);
     }
 
+    // virtual so the evaluation stage can be exercised without a live LLM.
+    public virtual MultiAgentCodeReview.Core.Interfaces.IEvalAgent CreateEvalAgent()
+    {
+        var modelConfig = GetModelConfig("eval");
+
+        // MULTIAGENT_MODEL_<ROLE> pins model ids per deployment, and the built-in default id is not
+        // guaranteed to still exist on Groq (see DEPLOY.md). If no eval model was configured, reuse the
+        // synthesis model (the other "final pass" role) rather than the built-in default.
+        if (!_config.Models.ContainsKey("eval") && _config.Models.TryGetValue("synthesis", out var synthesis))
+            modelConfig = modelConfig with { ModelId = synthesis.ModelId };
+
+        var agent = CreateOpenAIAgent(modelConfig, "EvalAgent", AgentPrompts.EvalSystemPrompt);
+        return new EvalAgent(agent);
+    }
+
     public MultiAgentCodeReview.Core.Interfaces.IAgent CreateModernizationQuickAgent()
     {
         var modelConfig = GetModelConfig("onboarding");
@@ -140,6 +155,7 @@ public class AgentFactory
                 "security" => 0.2,
                 "logic" => 0.3,
                 "performance" => 0.2,
+                "eval" => 0.1,
                 "modernization" => 0.4,
                 "synthesis" => 0.4,
                 "documentation" => 0.3,
@@ -152,6 +168,7 @@ public class AgentFactory
                 "security" => 2000,
                 "logic" => 3000,
                 "performance" => 2000,
+                "eval" => 1500,
                 "modernization" => 3000,
                 "synthesis" => 4000,
                 "documentation" => 8000,

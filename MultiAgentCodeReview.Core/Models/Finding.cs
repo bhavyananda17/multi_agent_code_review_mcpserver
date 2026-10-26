@@ -58,7 +58,8 @@ public record Finding(
     Dictionary<string, object>? Impact = null,
     Dictionary<string, object>? ModernizationContext = null,
     List<string>? References = null,
-    List<string>? Agents = null
+    List<string>? Agents = null,
+    FindingEvaluation? Evaluation = null
 );
 
 public record FixExample(

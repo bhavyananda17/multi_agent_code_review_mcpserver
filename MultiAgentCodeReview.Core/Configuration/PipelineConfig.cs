@@ -22,6 +22,22 @@ public class PipelineConfig
     public RagConfig Rag { get; set; } = new();
     public OutputConfig Output { get; set; } = new();
     public GitHubConfig GitHub { get; set; } = new();
+    public EvaluationConfig Evaluation { get; set; } = new();
+}
+
+public class EvaluationConfig
+{
+    /// <summary>Runs the self-evaluation stage after synthesis (one extra LLM call per batch of findings).</summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>A finding whose total score (3 dimensions x 1-3, max 9) is below this is flagged low-confidence.</summary>
+    public int Threshold { get; set; } = 5;
+
+    /// <summary>false: flagged findings go in a separate report section. true: dropped from the report.</summary>
+    public bool ExcludeLowConfidence { get; set; } = false;
+
+    /// <summary>Findings scored per LLM call; keeps each prompt inside the free-tier token budget.</summary>
+    public int BatchSize { get; set; } = 8;
 }
 
 public class GitHubConfig

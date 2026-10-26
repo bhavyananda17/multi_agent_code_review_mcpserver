@@ -204,7 +204,10 @@ static async Task RunReviewAsync(CodeReviewPipeline pipeline, IGitHubIssueServic
         Console.WriteLine("\n========== FINDINGS ==========");
         foreach (var finding in output.Result.Findings)
         {
-            Console.WriteLine($"\n[{finding.Severity}] {finding.Category} in {finding.File}:{finding.Line}");
+            var evalTag = finding.Evaluation is { } ev
+                ? $" [self-eval {ev.Total}/{FindingEvaluation.MaxTotal}{(ev.LowConfidence ? ", LOW CONFIDENCE" : "")}]"
+                : "";
+            Console.WriteLine($"\n[{finding.Severity}] {finding.Category} in {finding.File}:{finding.Line}{evalTag}");
             if (!string.IsNullOrEmpty(finding.QuickFix))
             {
                 Console.WriteLine($"  Quick fix: {finding.QuickFix}");

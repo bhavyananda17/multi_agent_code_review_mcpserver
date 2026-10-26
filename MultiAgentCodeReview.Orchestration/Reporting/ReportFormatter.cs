@@ -15,7 +15,11 @@ public static class ReportFormatter
     public static string FormatReport(ReviewOutput output)
     {
         var sb = new StringBuilder();
-        var findings = output.Result.Findings;
+        // Findings the self-evaluation stage flagged low-confidence stay out of the headline count,
+        // health score and severity sections; they get their own section at the end.
+        var allFindings = output.Result.Findings ?? new List<Finding>();
+        var findings = allFindings.Where(f => f.Evaluation?.LowConfidence != true).ToList();
+        var lowConfidence = allFindings.Where(f => f.Evaluation?.LowConfidence == true).ToList();
 
         sb.AppendLine("## Code Review Report");
         sb.AppendLine();
@@ -24,7 +28,9 @@ public static class ReportFormatter
         sb.AppendLine($"**Base:** {output.Context.BaseCommit ?? "HEAD~1"}");
         if (output.Context.Issue is { } issue)
             sb.AppendLine($"**Linked issue:** #{issue.Number} {issue.Title} ({issue.Owner}/{issue.Repo})");
-        sb.AppendLine($"**Total Findings:** {findings?.Count ?? 0}");
+        sb.AppendLine($"**Total Findings:** {findings.Count}");
+        if (lowConfidence.Count > 0)
+            sb.AppendLine($"**Low-confidence findings:** {lowConfidence.Count} (separate section below)");
         sb.AppendLine();
 
         // Health score
@@ -151,7 +157,27 @@ public static class ReportFormatter
         else
         {
             sb.AppendLine();
-            sb.AppendLine("Review completed with no findings.");
+            sb.AppendLine(lowConfidence.Count == 0
+                ? "Review completed with no findings."
+                : "No findings met the self-evaluation confidence threshold; see the low-confidence section below.");
+        }
+
+        if (lowConfidence.Count > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine("---");
+            sb.AppendLine();
+            sb.AppendLine("## Low-Confidence Findings");
+            sb.AppendLine();
+            var threshold = output.Context.EvaluationSummary?.Threshold;
+            sb.AppendLine(threshold is { } t
+                ? $"_Self-evaluation scored these below {t}/{FindingEvaluation.MaxTotal}. They may be off-topic, mis-rated or hard to act on — verify before acting. They are excluded from the health score above._"
+                : "_Self-evaluation flagged these as low-confidence. They may be off-topic, mis-rated or hard to act on — verify before acting. They are excluded from the health score above._");
+            sb.AppendLine();
+            foreach (var finding in lowConfidence)
+            {
+                FormatFinding(sb, finding);
+            }
         }
 
         return sb.ToString();
@@ -174,6 +200,12 @@ public static class ReportFormatter
             sb.AppendLine($"- **Quick fix:** `{finding.QuickFix}`");
         }
         sb.AppendLine($"- **Confidence:** {confidenceEmoji} {finding.Confidence:P0}");
+        if (finding.Evaluation is { } eval)
+        {
+            sb.AppendLine($"- **Self-evaluation:** relevance {eval.Relevance}/{FindingEvaluation.MaxScore} · severity accuracy {eval.SeverityAccuracy}/{FindingEvaluation.MaxScore} · actionability {eval.Actionability}/{FindingEvaluation.MaxScore} — **{eval.Total}/{FindingEvaluation.MaxTotal}**{(eval.LowConfidence ? " ⚠️ low confidence" : "")}");
+            if (!string.IsNullOrWhiteSpace(eval.Rationale))
+                sb.AppendLine($"- **Evaluator note:** {eval.Rationale}");
+        }
         sb.AppendLine();
         sb.AppendLine(finding.Description);
         sb.AppendLine();

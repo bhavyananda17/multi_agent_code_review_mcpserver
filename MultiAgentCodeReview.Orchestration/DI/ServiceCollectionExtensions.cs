@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
 using MultiAgentCodeReview.Core.Configuration;
 using MultiAgentCodeReview.Core.Interfaces;
+using MultiAgentCodeReview.Core.Models;
 using MultiAgentCodeReview.Core.RateLimiting;
 using MultiAgentCodeReview.Agents;
 using MultiAgentCodeReview.Orchestration.Pipeline;
@@ -47,6 +48,7 @@ public static class ServiceCollectionExtensions
         });
 
         services.AddTransient<FilterStage>();
+        services.AddTransient<EvaluationStage>();
         services.AddTransient<CodeReviewPipeline>();
 
         services.AddSingleton<AgentFactory>();
@@ -71,6 +73,16 @@ public static class ServiceCollectionExtensions
         options.BaseUrl = config["BASE_URL"]
             ?? "https://api.groq.com/openai";
 
+        // Self-evaluation stage (all optional; defaults live on EvaluationConfig).
+        if (bool.TryParse(config["EVAL_ENABLED"], out var evalEnabled))
+            options.Evaluation.Enabled = evalEnabled;
+        if (int.TryParse(config["EVAL_THRESHOLD"], out var evalThreshold))
+            options.Evaluation.Threshold = Math.Clamp(evalThreshold, 0, FindingEvaluation.MaxTotal);
+        if (bool.TryParse(config["EVAL_EXCLUDE_LOW_CONFIDENCE"], out var evalExclude))
+            options.Evaluation.ExcludeLowConfidence = evalExclude;
+        if (int.TryParse(config["EVAL_BATCH_SIZE"], out var evalBatch) && evalBatch > 0)
+            options.Evaluation.BatchSize = evalBatch;
+
         // Optional: only needed for issues in private repos (or a higher rate limit).
         options.GitHub.Token = config["GITHUB_TOKEN"]
             ?? Environment.GetEnvironmentVariable("GITHUB_TOKEN")
@@ -78,7 +90,7 @@ public static class ServiceCollectionExtensions
 
         var modelRoles = new[]
         {
-            "triage", "security", "logic", "performance",
+            "triage", "security", "logic", "performance", "eval",
             "modernization", "synthesis", "documentation", "onboarding"
         };
 
@@ -106,13 +118,13 @@ public static class ServiceCollectionExtensions
     {
         var key = $"MODEL_{role.ToUpper()}_TEMP";
         return double.TryParse(config[key], out var temp) ? temp :
-            role switch { "triage" => 0.1, "security" => 0.2, "logic" => 0.3, "performance" => 0.2, "modernization" => 0.4, "synthesis" => 0.4, "documentation" => 0.3, "onboarding" => 0.5, _ => 0.2 };
+            role switch { "triage" => 0.1, "eval" => 0.1, "security" => 0.2, "logic" => 0.3, "performance" => 0.2, "modernization" => 0.4, "synthesis" => 0.4, "documentation" => 0.3, "onboarding" => 0.5, _ => 0.2 };
     }
 
     private static int GetModelTokens(IConfiguration config, string role)
     {
         var key = $"MODEL_{role.ToUpper()}_TOKENS";
         return int.TryParse(config[key], out var tokens) ? tokens :
-            role switch { "triage" => 500, "security" => 2000, "logic" => 3000, "performance" => 2000, "modernization" => 3000, "synthesis" => 4000, "documentation" => 4000, "onboarding" => 3000, _ => 2000 };
+            role switch { "triage" => 500, "eval" => 1500, "security" => 2000, "logic" => 3000, "performance" => 2000, "modernization" => 3000, "synthesis" => 4000, "documentation" => 4000, "onboarding" => 3000, _ => 2000 };
     }
 }

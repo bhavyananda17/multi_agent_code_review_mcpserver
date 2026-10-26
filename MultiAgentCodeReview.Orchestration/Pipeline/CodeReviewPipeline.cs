@@ -15,6 +15,7 @@ public record ReviewOutput(PipelineContext Context, AgentResult Result);
 public class CodeReviewPipeline
 {
     private readonly FilterStage _filterStage;
+    private readonly EvaluationStage _evaluationStage;
     private readonly AgentFactory _agentFactory;
     private readonly PipelineConfig _config;
     private readonly ILogger<CodeReviewPipeline>? _logger;
@@ -23,11 +24,13 @@ public class CodeReviewPipeline
 
     public CodeReviewPipeline(
         FilterStage filterStage,
+        EvaluationStage evaluationStage,
         AgentFactory agentFactory,
         IOptions<PipelineConfig> config,
         ILogger<CodeReviewPipeline>? logger = null)
     {
         _filterStage = filterStage;
+        _evaluationStage = evaluationStage;
         _agentFactory = agentFactory;
         _config = config.Value;
         _logger = logger;
@@ -73,9 +76,14 @@ public class CodeReviewPipeline
 
         _logger?.LogInformation("Stage 4: Synthesizing findings (C# dedup)...");
         var finalResult = SynthesizeFindings(specialistResults, context);
-        _logger?.LogInformation("Review complete. Found {Count} findings", finalResult.Findings.Count);
 
-        return new ReviewOutput(context, finalResult);
+        var (evaluatedResult, evaluationSummary) = await _evaluationStage.ExecuteAsync(finalResult, context, cancellationToken);
+        if (evaluationSummary != null)
+            context = context with { EvaluationSummary = evaluationSummary };
+
+        _logger?.LogInformation("Review complete. Found {Count} findings", evaluatedResult.Findings.Count);
+
+        return new ReviewOutput(context, evaluatedResult);
     }
 
     private async Task<List<(string AgentName, AgentResult Result)>> RunSpecialistsAsync(
@@ -254,7 +262,7 @@ public class CodeReviewPipeline
         return await agent.AnalyzeAsync(context, ct);
     }
 
-    private static bool IsRateLimit(Exception ex)
+    internal static bool IsRateLimit(Exception ex)
     {
         var msg = ex.Message + ex.InnerException?.Message + ex.InnerException?.InnerException?.Message;
         return msg.Contains("429") || msg.Contains("rate") || msg.Contains("Rate") || msg.Contains("too many") || msg.Contains("Too Many");

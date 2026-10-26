@@ -134,6 +134,7 @@ graph LR
 | **Triage** | 8B model classifies diff, routes to 1-3 specialists | `TriageAgent.cs` — outputs `{"selected_agents":[...]}` |
 | **Specialists** | 3 agents launched in parallel via `Task.WhenAll`, staggered 15s apart | Staggered to respect Groq free-tier rate limits (30 RPM / 12K TPM); each agent works on the 70B model through Groq API |
 | **Dedup** | C# code merges findings, boosts cross-agent agreement | `CodeReviewPipeline.cs` — no LLM call needed |
+| **Self-eval** | An LLM scores each deduplicated finding 1–3 on relevance, severity accuracy and actionability; totals below the threshold (default 5/9) are flagged low-confidence and shown in a separate report section (or dropped). Fails open: unscored findings are reported as-is | `EvaluationStage.cs`, `EvalAgent.cs` — batches of 8 findings per call |
 | **ModernizationQuick** | Quick-scan for outdated patterns and legacy APIs | `ModernizationQuickAgent.cs` — 8B model, runs after the pipeline via the `review_repo` MCP tool |
 
 ---
@@ -418,6 +419,11 @@ All settings via environment variables (prefix `MULTIAGENT_`):
 | `MODEL_<ROLE>_TEMP` | Temperature override | Role-specific |
 | `MODEL_<ROLE>_TOKENS` | Max tokens override | Role-specific |
 | `GITHUB_TOKEN` | Optional GitHub token, only for `--issue` on private repos (also read as `MULTIAGENT_GITHUB_TOKEN`) | — |
+| `MODEL_EVAL` | Model for the self-evaluation judge (falls back to `MODEL_SYNTHESIS`, then the built-in default) | Role-specific |
+| `EVAL_ENABLED` | Run the self-evaluation stage | `true` |
+| `EVAL_THRESHOLD` | Findings with total score below this (0–9) are flagged low-confidence | `5` |
+| `EVAL_EXCLUDE_LOW_CONFIDENCE` | `true` drops flagged findings; `false` lists them in a separate section | `false` |
+| `EVAL_BATCH_SIZE` | Findings scored per LLM call | `8` |
 
 Example `.env`:
 ```bash

@@ -18,6 +18,18 @@ public interface ISpecialistAgent : IAgent
     List<string> TriggerCategories { get; }
 }
 
+public interface IEvalAgent : IAgent
+{
+    /// <summary>
+    /// Scores one batch of findings. The result is positionally aligned with <paramref name="findings"/>;
+    /// an entry is null when the model returned no usable score for that finding.
+    /// </summary>
+    Task<List<FindingEvaluation?>> EvaluateAsync(
+        PipelineContext context,
+        IReadOnlyList<Finding> findings,
+        CancellationToken cancellationToken = default);
+}
+
 public interface IDocumentationAgent : IAgent
 {
     Task<string> GenerateDocumentationAsync(

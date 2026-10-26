@@ -10,7 +10,8 @@ public record PipelineContext(
     GitDiff? Diff,
     DependencyGraph? DependencyGraph,
     Dictionary<string, string>? Metadata = null,
-    IssueContext? Issue = null
+    IssueContext? Issue = null,
+    EvaluationSummary? EvaluationSummary = null
 );
 
 public record ChangedFile(
