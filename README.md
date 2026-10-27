@@ -438,7 +438,7 @@ Matching is lexical overlap, not understanding: it misses paraphrases and can pa
 
 ## Deployment
 
-Two cloud deployment targets exist alongside local/stdio usage, each covering a different slice of the system. Both are defined by the GitHub Actions workflows in `.github/workflows/`. The AWS instance is started by hand and is normally stopped to avoid cost, so do not assume an endpoint is up.
+Two cloud deployment targets exist alongside local/stdio usage, each covering a different slice of the system. Both are defined by the GitHub Actions workflows in `.github/workflows/`. **The AWS instance is currently stopped** to avoid cost (it is started by hand), so no endpoint is up right now, and its public IP changes each time it starts. It can be brought back on request; the deployed image is older than the current `main` until the deploy workflow is rerun.
 
 | Deployment | What it runs | Stack | Auth |
 |------------|-------------|-------|------|
