@@ -2,7 +2,7 @@
 
 > **Intelligent, automated code review powered by multi-agent AI**
 
-A production-grade multi-agent code review system built with Microsoft AutoGen and Groq's Llama models. Analyzes C# projects with specialized agents for security, performance, and logic analysis. Exposed as an **MCP server** for seamless integration with OpenCode, VS Code, Claude Desktop, and other MCP clients. **Deployed and live** on both Render (REST API) and AWS (full MCP server over HTTP) — see [Deployment](#deployment) for details.
+A multi-agent code review pipeline for C# repositories, built on Microsoft AutoGen against Groq's OpenAI-compatible API. Specialist agents review the diff of a commit, deterministic stages merge and verify what they found, and the result is a markdown report. It runs as a CLI, as an MCP server (stdio or HTTP) and as a small REST API. This README describes how it is built; what it was measured to do, and where it falls short, is in [benchmarks/](benchmarks/README.md).
 
 ---
 
@@ -63,6 +63,18 @@ graph TB
     C -.->|"docs"| DA
     OA & DA -.-> M8
 ```
+
+---
+
+## Engineering decisions
+
+- **Models generate; deterministic code decides.** Only triage, the three specialists and the judge call a model. Dedup, severity ordering, diff line numbering, the grounding check and the benchmark matcher are plain C# with unit tests.
+- **Failures are visible, never silent.** A timed-out or flaky agent is retried, and if it still fails the report opens with an "Incomplete review" banner. Errors retrying cannot fix (bad key, retired model) fail loudly. Verification stages flag findings into a separate section instead of dropping them.
+- **Input from MCP clients is untrusted.** `commit_hash` and `base_commit` become `git` arguments, so refs are validated before use (a ref beginning with `-` would be parsed by git as an option). The CLI reads only `MULTIAGENT_`-prefixed configuration, so an unrelated `API_KEY` in the environment cannot replace the Groq key.
+- **Context is budgeted.** Specialists get a fair-share window of the diff (cut at line boundaries, omissions named) plus a few hundred tokens of Roslyn facts about only the methods the diff touches.
+- **Cost and reproducibility are built in.** Tokens are counted per review from each response's own `usage` field, scoped with `AsyncLocal` so concurrent reviews do not mix counts. `bench` can record generations and replay only the verification stages, so a judge comparison costs a few thousand tokens instead of a full run.
+- **Tested without a network.** `dotnet test` runs the git diff parser against real temporary repositories and the whole pipeline against a fake OpenAI-compatible server. Both deploy workflows gate on it.
+- **Deploys hold no long-lived cloud keys.** GitHub Actions assumes an AWS role through OIDC and deploys over SSM, with no SSH and with secrets in Parameter Store.
 
 ---
 
@@ -167,8 +179,8 @@ A slow or flaky LLM call must never make a review look more complete than it was
 
 Findings that a verification stage casts doubt on are never dropped silently: they stay in the report in a separate "Low-Confidence Findings" section, with the reason, and are left out of the headline count and the health score.
 
-- **Grounding** catches fabricated or misquoted code (for example a finding about a "misspelled identifier" that is not in the file). Quotes are compared on whitespace-normalised text and whole identifiers, against the file *as it is at the reviewed commit* (not the working tree). It does **not** check that the reasoning about real code is right.
-- **The judge** is an LLM, so its scores are opinions. LLM judges are known to favour output from their own model or family (e.g. Zheng et al., 2023, *Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena*; Panickssery et al., 2024, *LLM Evaluators Recognize and Favor Their Own Generations*). If `MODEL_EVAL` is unset the judge reuses the synthesis model, which is the same model that wrote the findings; the report says so ("same model", "same family" or "different family"), and `.env.example` recommends a different family. Judge scores have not been validated against labelled data.
+- **Grounding** catches fabricated or misquoted code (for example a finding about a "misspelled identifier" that is not in the file). Quotes are compared on whitespace-normalised text and whole identifiers, against the file *as it is at the reviewed commit* (not the working tree). It checks that the quoted code exists, **not** that the claim made about it is true: a wrong claim about real code passes.
+- **The judge** is an LLM, so its scores are opinions, and a judge that is the same model or family as the generators tends to be lenient. If `MODEL_EVAL` is unset the judge reuses the synthesis model, which wrote the findings; the report says so ("same model", "same family" or "different family"), and `.env.example` recommends a different family. Judge scores have not been validated against labelled data.
 
 ---
 
@@ -216,13 +228,13 @@ graph TB
 
 | Function | Description | Returns |
 |----------|-------------|---------|
-| `CreateTriageAgent()` | Creates triage agent with 8B model | `ITriageAgent` |
-| `CreateSecurityAgent()` | Creates security specialist with 70B model | `ISpecialistAgent` |
-| `CreatePerformanceAgent()` | Creates performance specialist with 70B model | `ISpecialistAgent` |
-| `CreateLogicAgent()` | Creates logic specialist with 70B model | `ISpecialistAgent` |
-| `CreateModernizationQuickAgent()` | Creates quick-scan modernization agent with 8B model | `IAgent` |
-| `CreateDocumentationAgent()` | Creates documentation agent with 8B model | `IDocumentationAgent` |
-| `CreateOnboardingAgent()` | Creates onboarding agent with 8B model | `IOnboardingAgent` |
+| `CreateTriageAgent()` | Creates triage agent (small model) | `ITriageAgent` |
+| `CreateSecurityAgent()` | Creates security specialist (large model) | `ISpecialistAgent` |
+| `CreatePerformanceAgent()` | Creates performance specialist (large model) | `ISpecialistAgent` |
+| `CreateLogicAgent()` | Creates logic specialist (large model) | `ISpecialistAgent` |
+| `CreateModernizationQuickAgent()` | Creates quick-scan modernization agent (small model) | `IAgent` |
+| `CreateDocumentationAgent()` | Creates documentation agent (small model) | `IDocumentationAgent` |
+| `CreateOnboardingAgent()` | Creates onboarding agent (small model) | `IOnboardingAgent` |
 
 ---
 
@@ -420,22 +432,22 @@ It reports the paired difference with a bootstrap interval and an exact sign-fli
 
 The results file also records how the run was configured (models, whether static analysis, grounding and the judge were on, the diff window, and whether the judge is the same model or family as the generators).
 
-Matching is lexical overlap, not understanding: it misses paraphrases and can pair unrelated comments that share vocabulary. Read the `matches` in the JSON before trusting a number, and remember that valid findings the reviewers didn't mention count as false positives. Each row runs the real pipeline, so a benchmark costs real LLM quota.
+Matching is lexical overlap, not understanding: it misses paraphrases and can pair unrelated comments that share vocabulary, and it has not been validated against human labels. Each row runs the real pipeline, so a benchmark costs real LLM quota. The dataset, the results of the runs so far and their limits are in [benchmarks/README.md](benchmarks/README.md); read that before quoting a number.
 
 ---
 
 ## Deployment
 
-Two live cloud deployments run alongside local/stdio usage, each covering a different slice of the system:
+Two cloud deployment targets exist alongside local/stdio usage, each covering a different slice of the system. Both are defined by the GitHub Actions workflows in `.github/workflows/`. The AWS instance is started by hand and is normally stopped to avoid cost, so do not assume an endpoint is up.
 
-| Deployment | What's live | Stack | Auth |
+| Deployment | What it runs | Stack | Auth |
 |------------|-------------|-------|------|
 | **Render** | Thin REST wrapper (`POST /api/review`) around the core pipeline | `MultiAgentCodeReview.Api`, Docker, Render (scale-to-zero), GitHub Actions CI/CD | `X-Api-Key` header |
 | **AWS** | The real MCP server — all 3 tools over HTTP transport | `MultiAgentCodeReview.McpServer`, Docker, EC2 + ECR + SSM, GitHub Actions CI/CD via OIDC | `X-Api-Key` header |
 
 ### McpServer: Dual Transport
 
-`MultiAgentCodeReview.McpServer` speaks either transport depending on `MCP_TRANSPORT`, so local OpenCode usage is unaffected by the cloud deployment:
+`MultiAgentCodeReview.McpServer` speaks either transport depending on `MCP_TRANSPORT`, so local OpenCode usage is unaffected by the cloud deployments:
 
 ```mermaid
 graph TB
@@ -522,9 +534,10 @@ MODEL_EVAL=qwen/qwen3.8-27b   # judge from a different family than the generator
 | LLM calls per review | 1 triage + up to 3 specialists + 1 per 8 findings for the judge (+1 modernization scan via the MCP `review_repo` tool) |
 | Specialist execution | Parallel via `Task.WhenAll`, staggered 15s apart |
 | Synthesis, grounding, static analysis | Deterministic C#: well under a second on the benchmark PRs |
-| Wall time | 8–80 s per PR (mean about 48 s) measured on the 12-PR benchmark with the Groq free tier; see `benchmarks/` |
+| Wall time | 6-84 s per PR (mean about 41 s) on the 12-PR benchmark, Groq free tier; see `benchmarks/` |
+| Tokens | about 12.6k per PR across all models, counted from each response's own `usage` field |
 
-> **Parallelism note:** the specialists are launched together via `Task.WhenAll` with a fixed 15s stagger between their starts to respect Groq free-tier rate limits. Requests that still hit a 429 are retried automatically with backoff. Token usage is not recorded, so no cost figure is claimed.
+> **Parallelism note:** the specialists are launched together via `Task.WhenAll` with a fixed 15s stagger between their starts to respect Groq free-tier rate limits. Requests that still hit a 429 are retried automatically with backoff. On the free tier, throttling rather than computation dominates wall time.
 
 ---
 
@@ -536,57 +549,15 @@ MODEL_EVAL=qwen/qwen3.8-27b   # judge from a different family than the generator
 
 ## Status
 
-**Working pipeline** — parallel specialists, accurate line numbers, deterministic dedup, a grounding check and an LLM judge, with a benchmark harness to measure it.
+A working pipeline: parallel specialists, accurate line numbers, deterministic dedup, a grounding check and an LLM judge, with a benchmark harness to measure it. Measured against human review comments on 12 pull requests, its findings rarely coincide with what the reviewers wrote; [benchmarks/README.md](benchmarks/README.md) has the numbers, how to read them, and what went wrong.
 
 ### Known gaps
-- Findings quality is only measured on a small benchmark (see `benchmarks/`); the lexical matcher used there both over- and under-matches, so read the matches before trusting a number
-- The judge's scores have not been validated against labelled data
+- **A false claim about real code passes verification.** Grounding checks that quoted code exists, and the judge did not catch the one false `Critical` pair examined by hand. The specialists see a window of the diff, not the enclosing method signature, which is a likely cause.
+- The judge's scores have not been validated against labelled data, and a same-model or same-family judge is lenient.
+- The benchmark matcher is lexical and unvalidated; the benchmark is 12 hand-picked PRs.
 - Rate limiting infrastructure (`TokenBudget`, `RequestQueue`) is built but not wired in
 - RAG/knowledge search interfaces defined but unimplemented
 - Roslyn call-site analysis is same-file only; analysis is limited to C# projects
-- No token or cost accounting
-- Python/Ruff integration planned — see [below](#pythonruff-integration-planned)
 
-### Python/Ruff integration (planned)
-
-The pipeline is currently C#-only: `FilterStage` whitelists `.cs`, `.csproj`, `.fsproj`, `.vbproj`, `.sln`, `.fs`, `.fsx`, `.props`, `.targets` (so `.py` files are silently dropped), and `CodeAnalysisTool` is Roslyn/C# only. The plan is to add a Python analysis stage powered by Ruff:
-
-```mermaid
-graph TB
-    classDef current fill:#1565c0,stroke:#0d47a1,color:#ffffff
-    classDef future fill:#c62828,stroke:#b71c1c,color:#ffffff
-    classDef merged fill:#2e7d32,stroke:#1b5e20,color:#ffffff
-
-    subgraph "Current State"
-        F1["FilterStage<br/>C# extensions only<br/>❌ .py dropped"]:::current
-        CA["CodeAnalysisTool<br/>Roslyn / C# only"]:::current
-    end
-
-    subgraph "Future State"
-        F2["FilterStage v2<br/>+ .py .pyi .pyx"]:::future
-        PC["PipelineContext<br/>+ PythonFiles"]:::future
-        S5["Stage 5: Python Analysis"]:::future
-        RS["PythonRuffService<br/>ruff check --output-format json"]:::future
-        CONV["Ruff JSON → Finding<br/>S→HIGH, E→HIGH, W→MEDIUM, F→CRITICAL, C→LOW"]:::future
-    end
-
-    MERGE["Merge C# + Python findings<br/>sorted by severity"]:::merged
-
-    F1 --> F2
-    F2 --> PC
-    PC --> S5
-    S5 --> RS
-    RS --> CONV
-    CONV --> MERGE
-    MERGE --> Report["Combined Markdown Report"]
-```
-
-**Implementation checklist:**
-- `FilterStage.cs` — add `.py`, `.pyi`, `.pyx` to the source extension whitelist and categorize files into C# vs Python
-- `PipelineContext` — add a `PythonFiles` collection
-- `CodeReviewPipeline.cs` — add a Python analysis step after synthesis when Python files are present
-- **New:** `IPythonRuffService` (Core/Interfaces) + `PythonRuffService` (Orchestration)
-- Register `IPythonRuffService` in `ServiceCollectionExtensions.cs`
-- Env vars: `PYTHON_RUFF_SERVICE_URL` (HTTP option) or `RUFF_EXECUTABLE_PATH` (process option)
-
-**Service options:** (A) HTTP endpoint that shells out to `ruff check --output-format json`, (B) direct process invocation of the `ruff` CLI, or (C) embedded Python via Python.NET.
+### Roadmap
+Python support is not started: `FilterStage` whitelists C# extensions (`.py` files are dropped) and `CodeAnalysisTool` is Roslyn-only. The plan is a Ruff-backed analysis step (`ruff check --output-format json`, mapped to findings) behind an `IPythonRuffService`, added after dedup when Python files are present.
