@@ -1,0 +1,1031 @@
+{
+  "generatedAtUtc": "2026-10-27T06:28:54.494407Z",
+  "interrupted": false,
+  "settings": {
+    "similarityThreshold": 0.25,
+    "matchMode": "any-match",
+    "includeLowConfidence": false,
+    "similarity": "Dice coefficient on stop-word-filtered, stemmed, camelCase-split tokens; >= 2 shared tokens required",
+    "evaluationEnabled": true,
+    "evaluationThreshold": 5,
+    "evaluationExcludesLowConfidence": false,
+    "modelOverrides": {
+      "triage": "openai/gpt-oss-20b",
+      "security": "openai/gpt-oss-120b",
+      "logic": "openai/gpt-oss-120b",
+      "performance": "openai/gpt-oss-120b",
+      "eval": "openai/gpt-oss-120b",
+      "modernization": "openai/gpt-oss-120b",
+      "synthesis": "openai/gpt-oss-120b",
+      "documentation": "openai/gpt-oss-20b",
+      "onboarding": "openai/gpt-oss-20b"
+    },
+    "groundingEnabled": true,
+    "staticAnalysisEnabled": true,
+    "diffCharBudget": 6000,
+    "judgeModel": "openai/gpt-oss-120b",
+    "judgeRelation": "same model as a generator",
+    "agentTimeoutSeconds": 300,
+    "mode": "replay"
+  },
+  "aggregate": {
+    "rows": 12,
+    "succeeded": 12,
+    "failed": 0,
+    "macro": {
+      "precision": 0.044642857142857144,
+      "recall": 0.08333333333333333,
+      "f1": 0.05714285714285714
+    },
+    "micro": {
+      "predicted": 43,
+      "groundTruth": 28,
+      "matchedPredictions": 3,
+      "matchedGroundTruth": 3,
+      "precision": 0.06976744186046512,
+      "recall": 0.10714285714285714,
+      "f1": 0.08450704225352113
+    },
+    "macroCi95": {
+      "precision": {
+        "low": 0,
+        "high": 0.11011904761904762
+      },
+      "recall": {
+        "low": 0,
+        "high": 0.2222222222222222
+      },
+      "f1": {
+        "low": 0,
+        "high": 0.1380952380952381
+      }
+    },
+    "degradedRows": 0,
+    "totalTokens": 36239
+  },
+  "results": [
+    {
+      "row": 1,
+      "repoUrl": "https://github.com/dotnet/extensions",
+      "commitSha": "2e537166e4231e50cceb66832b9dfd1382e24d1b",
+      "status": "ok",
+      "pipelineSeconds": 3.97,
+      "predictedCount": 4,
+      "groundTruthCount": 3,
+      "excludedLowConfidence": 3,
+      "matchedPredictions": 0,
+      "matchedGroundTruth": 0,
+      "precision": 0,
+      "recall": 0,
+      "f1": 0,
+      "pipelineSummary": "Reviewed 5 files. Found 7 findings across 3 files: 1 critical, 3 high, 2 medium, 1 low. 3 finding(s) could not be matched to a specific line. 1 near-duplicate finding(s) without a line number were merged. 1 finding(s) were reported by more than one agent. Grounding check: 3 of 7 finding(s) quote code that could not be found in the commit and are flagged. Self-evaluation scored 7/7 findings (threshold 5/9); none flagged low-confidence. Judge: openai/gpt-oss-120b, the same model that wrote these findings (same-model judges tend to favour their own output; set MULTIAGENT_MODEL_EVAL to a different model family for an independent judge).",
+      "matches": [],
+      "unmatchedPredictions": [
+        {
+          "severity": "Critical",
+          "category": "ResourceLeak",
+          "file": "test/Libraries/Microsoft.Extensions.AI.Integration.Tests/SpeechToTextClientIntegrationTests.cs",
+          "line": 81,
+          "description": "GetAudioStream uses a 'using' statement to create the stream and then returns it, causing the returned Stream to be disposed before the caller can read from it.",
+          "recommendation": "Remove the 'using' statement and return the stream directly, ensuring the caller disposes it.",
+          "lowConfidence": false,
+          "selfEvalTotal": 8,
+          "grounded": true,
+          "codeSnippet": "using Stream? s = typeof(SpeechToTextClientIntegrationTests).Assembly.GetManifestResourceStream($\"Microsoft.Extensions.AI.Resources.{fileName}\");"
+        },
+        {
+          "severity": "High",
+          "category": "InputValidation",
+          "file": "src/Libraries/Microsoft.Extensions.AI.OpenAI/OpenAISpeechToTextClient.cs",
+          "line": 63,
+          "description": "[SecurityAgent]: Filename derived from untrusted audio stream is inserted directly into the multipart Content-Disposition header without validation, enabling HTTP header injection or request smuggling attacks.\n\n[PerformanceAgent]: The audio stream is read twice: ResolveFilename is called in GetTextAsync (line\u202F63) and again in GetStreamingTextAsync (line\u202F117), causing the same stream to be scanned two times which adds unnecessary I/O latency (≈\u202F100\u202Fms per request for typical audio sizes).\n\n[LogicAgent]: ResolveFilename is called with 'audioSpeechStream' without checking for null, which can cause ArgumentNullException inside ResolveFilename.",
+          "recommendation": "Validate and sanitize the filename to allow only safe characters before adding it to the multipart request.\nCache the result of ResolveFilename (or the detected filename/extension) after the first call and reuse it for subsequent operations within the same request.\nValidate that 'audioSpeechStream' is not null before calling ResolveFilename and throw ArgumentNullException if it is.",
+          "lowConfidence": false,
+          "selfEvalTotal": 9,
+          "grounded": true,
+          "codeSnippet": "string filename = ResolveFilename(audioSpeechStream);"
+        },
+        {
+          "severity": "Medium",
+          "category": "CodeSmell",
+          "file": "src/Libraries/Microsoft.Extensions.AI.OpenAI/OpenAISpeechToTextClient.cs",
+          "line": 24,
+          "description": "The class is marked as internal sealed but implements a public interface; this may limit extensibility and testability.",
+          "recommendation": "Consider making the class public or providing a factory for testing, and avoid sealing unless necessary.",
+          "lowConfidence": false,
+          "selfEvalTotal": 8,
+          "grounded": true,
+          "codeSnippet": "internal sealed class OpenAISpeechToTextClient : ISpeechToTextClient"
+        },
+        {
+          "severity": "Low",
+          "category": "Naming",
+          "file": "test/Libraries/Microsoft.Extensions.AI.Integration.Tests/VerbatimMultiPartHttpHandler.cs",
+          "line": 44,
+          "description": "Property name 'ExpectedAudioFilename' could be more descriptive, e.g., 'ExpectedMultipartFileName'.",
+          "recommendation": "Rename property to better reflect its purpose.",
+          "lowConfidence": false,
+          "selfEvalTotal": 9,
+          "grounded": true,
+          "codeSnippet": "public string? ExpectedAudioFilename { get; init; }"
+        }
+      ],
+      "unmatchedGroundTruth": [
+        "Can you use `Stream.ReadExactly` here, or does that prevent you from being able to reliably rewind after reading in an unsuccessful read-exactly scenario? Maybe `Stream.ReadAtLeast` might be appropriate though, with `throwOnEndOfStream` set to `false`? But then again, maybe just having this loop here is the cleanest option, as you're not _working against_ what those convenience APIs are trying to",
+        "Are we sure the stream is positioned at the beginning to ensure we are reading the header?",
+        "what happen if we get unrecognized format?"
+      ],
+      "tokens": {
+        "calls": 1,
+        "promptTokens": 2435,
+        "completionTokens": 1514,
+        "byModel": {
+          "openai/gpt-oss-120b": {
+            "calls": 1,
+            "promptTokens": 2435,
+            "completionTokens": 1514
+          }
+        },
+        "total": 3949
+      }
+    },
+    {
+      "row": 2,
+      "repoUrl": "https://github.com/dotnet/BenchmarkDotNet",
+      "commitSha": "5a5453850bcc88e1c609a701502f3993ec0cbb8b",
+      "status": "ok",
+      "pipelineSeconds": 3.51,
+      "predictedCount": 4,
+      "groundTruthCount": 3,
+      "excludedLowConfidence": 3,
+      "matchedPredictions": 1,
+      "matchedGroundTruth": 1,
+      "precision": 0.25,
+      "recall": 0.3333333333333333,
+      "f1": 0.28571428571428575,
+      "pipelineSummary": "Reviewed 4 files. Found 7 findings across 2 files: 1 critical, 4 high, 2 medium, 0 low. 5 finding(s) could not be matched to a specific line. 1 near-duplicate finding(s) without a line number were merged. 1 finding(s) were reported by more than one agent. Grounding check: 3 of 7 finding(s) quote code that could not be found in the commit and are flagged. Self-evaluation scored 7/7 findings (threshold 5/9); none flagged low-confidence. Judge: openai/gpt-oss-120b, the same model that wrote these findings (same-model judges tend to favour their own output; set MULTIAGENT_MODEL_EVAL to a different model family for an independent judge).",
+      "matches": [
+        {
+          "finding": {
+            "severity": "Medium",
+            "category": "Other",
+            "file": "src/BenchmarkDotNet/ConsoleArguments/ConfigParser.cs",
+            "line": 340,
+            "description": "When multiple IlcPackages paths are supplied, duplicate paths are not detected, potentially creating redundant jobs.",
+            "recommendation": "Add a check for duplicate directory entries and reject or deduplicate them.",
+            "lowConfidence": false,
+            "selfEvalTotal": 8,
+            "grounded": true,
+            "codeSnippet": "if (options.IlcPackages.Count > 1) { ... }"
+          },
+          "groundTruth": "This only checks existence. Two more cases should be rejected: - Multiple paths with no NativeAOT runtime (`--ilcPackages a b -r net10.0`, or no `-r`): parses fine and silently drops both paths. - Duplicate paths (`--ilcPackages X X`): produces `-1` and `-2` jobs with value-equal toolchains, reported as a before/after comparison.",
+          "similarity": 0.333
+        }
+      ],
+      "unmatchedPredictions": [
+        {
+          "severity": "Critical",
+          "category": "Other",
+          "file": "src/BenchmarkDotNet/ConsoleArguments/ConfigParser.cs",
+          "line": 329,
+          "description": "Validate method accesses options.IlcPackages without null check; if options.IlcPackages is null a NullReferenceException will be thrown.",
+          "recommendation": "Add a null check before iterating and accessing Count on options.IlcPackages.",
+          "lowConfidence": false,
+          "selfEvalTotal": 8,
+          "grounded": true,
+          "codeSnippet": "foreach (var ilcPackages in options.IlcPackages)"
+        },
+        {
+          "severity": "High",
+          "category": "InputValidation",
+          "file": "src/BenchmarkDotNet/ConsoleArguments/ConfigParser.cs",
+          "line": 332,
+          "description": "[SecurityAgent]: The tool only checks that each provided IlcPackages path exists, without validating that the directory actually contains a legitimate ILCompiler package structure, allowing an attacker to supply a malicious directory that could be loaded and executed.\n\n[PerformanceAgent]: Iterates over `options.IlcPackages` and calls `IsNotNullButDoesNotExist()` for each entry, performing a separate filesystem existence check per path; with many paths this adds O(N) I/O latency.",
+          "recommendation": "Validate that each IlcPackages directory contains the expected ILCompiler package files (e.g., required DLLs or manifest) before accepting it.\nBatch existence checks or cache results if the same path may be validated multiple times.",
+          "lowConfidence": false,
+          "selfEvalTotal": 8,
+          "grounded": true,
+          "codeSnippet": "foreach (var ilcPackages in options.IlcPackages)"
+        },
+        {
+          "severity": "Medium",
+          "category": "Other",
+          "file": "src/BenchmarkDotNet/ConsoleArguments/CommandLineOptions.cs",
+          "line": 0,
+          "description": "Class CommandLineOptions contains 76 members, violating the Single Responsibility Principle and making the class hard to maintain.",
+          "recommendation": "Group related options into separate option classes or structs and compose them in CommandLineOptions.",
+          "lowConfidence": false,
+          "selfEvalTotal": 8,
+          "grounded": true,
+          "codeSnippet": "public class CommandLineOptions { ... }"
+        }
+      ],
+      "unmatchedGroundTruth": [
+        "Nit: `SingleOrDefault()` is only safe because of the `Count > 1` guard in `CreateJobsForGivenRuntime`, and `Runtime.Parse` runs twice. Having this arm iterate `options.IlcPackages.DefaultIfEmpty()` (with `CreateJobForGivenRuntime` returning `IEnumerable<Job>`) would leave one NativeAOT path and drop the wrapper.",
+        "Missing coverage: `--packages` with multiple paths, multiple paths with a non-NativeAOT runtime, and cross-drive / case-differing paths in the display-name theory."
+      ],
+      "tokens": {
+        "calls": 1,
+        "promptTokens": 2154,
+        "completionTokens": 1377,
+        "byModel": {
+          "openai/gpt-oss-120b": {
+            "calls": 1,
+            "promptTokens": 2154,
+            "completionTokens": 1377
+          }
+        },
+        "total": 3531
+      }
+    },
+    {
+      "row": 3,
+      "repoUrl": "https://github.com/DapperLib/Dapper",
+      "commitSha": "d56340b8859ca4270ef12efb03f6e48a95745ee6",
+      "status": "ok",
+      "pipelineSeconds": 3.26,
+      "predictedCount": 2,
+      "groundTruthCount": 2,
+      "excludedLowConfidence": 3,
+      "matchedPredictions": 0,
+      "matchedGroundTruth": 0,
+      "precision": 0,
+      "recall": 0,
+      "f1": 0,
+      "pipelineSummary": "Reviewed 4 files. Found 5 findings across 3 files: 0 critical, 2 high, 3 medium, 0 low. 3 finding(s) could not be matched to a specific line. Grounding check: 3 of 5 finding(s) quote code that could not be found in the commit and are flagged. Self-evaluation scored 5/5 findings (threshold 5/9); none flagged low-confidence. Judge: openai/gpt-oss-120b, the same model that wrote these findings (same-model judges tend to favour their own output; set MULTIAGENT_MODEL_EVAL to a different model family for an independent judge).",
+      "matches": [],
+      "unmatchedPredictions": [
+        {
+          "severity": "Medium",
+          "category": "CodeSmell",
+          "file": "Dapper/SqlMapper.Async.cs",
+          "line": 0,
+          "description": "Class `SqlMapper` contains 70 members, far exceeding the recommended maximum of 20, which hurts maintainability.",
+          "recommendation": "Refactor the class by extracting related groups of methods into separate helper classes or partial classes.",
+          "lowConfidence": false,
+          "selfEvalTotal": 7,
+          "grounded": true,
+          "codeSnippet": "public static partial class SqlMapper"
+        },
+        {
+          "severity": "Medium",
+          "category": "CodeSmell",
+          "file": "Dapper/SqlMapper.GridReader.Async.cs",
+          "line": 14,
+          "description": "Class `GridReader` now has 22 members, surpassing the recommended limit of 20.",
+          "recommendation": "Consider moving some responsibilities (e.g., async disposal, result handling) to dedicated helper classes.",
+          "lowConfidence": false,
+          "selfEvalTotal": 8,
+          "grounded": true,
+          "codeSnippet": "public partial class GridReader"
+        }
+      ],
+      "unmatchedGroundTruth": [
+        "This `convertToType` variable is not used. I guess it was meant to be used 4 lines below?",
+        "Is there a reason this is using a `DbConnection` and not an `IDbConnection`?"
+      ],
+      "tokens": {
+        "calls": 1,
+        "promptTokens": 1435,
+        "completionTokens": 1270,
+        "byModel": {
+          "openai/gpt-oss-120b": {
+            "calls": 1,
+            "promptTokens": 1435,
+            "completionTokens": 1270
+          }
+        },
+        "total": 2705
+      }
+    },
+    {
+      "row": 4,
+      "repoUrl": "https://github.com/fluentassertions/fluentassertions",
+      "commitSha": "6ea70708c33db3a78aad545a4d940bac038232da",
+      "status": "ok",
+      "pipelineSeconds": 1.78,
+      "predictedCount": 2,
+      "groundTruthCount": 2,
+      "excludedLowConfidence": 0,
+      "matchedPredictions": 0,
+      "matchedGroundTruth": 0,
+      "precision": 0,
+      "recall": 0,
+      "f1": 0,
+      "pipelineSummary": "Reviewed 2 files. Found 2 findings across 1 files: 0 critical, 1 high, 0 medium, 1 low. 1 finding(s) were reported by more than one agent. Grounding check: all 2 checkable finding(s) quote code that exists in the commit. Self-evaluation scored 2/2 findings (threshold 5/9); none flagged low-confidence. Judge: openai/gpt-oss-120b, the same model that wrote these findings (same-model judges tend to favour their own output; set MULTIAGENT_MODEL_EVAL to a different model family for an independent judge).",
+      "matches": [],
+      "unmatchedPredictions": [
+        {
+          "severity": "High",
+          "category": "InputValidation",
+          "file": "Src/FluentAssertions/Specialized/JsonNodeAssertions.cs",
+          "line": 45,
+          "description": "[SecurityAgent]: The new implementation treats a JSON property with an explicit null value as existing (hasProperty is true), which can cause callers to believe required data is present and bypass validation or security checks.\n\n[LogicAgent]: The method does not validate that the 'code' argument (property name) is non‑null or non‑empty, which can cause ArgumentNullException or unexpected behavior when JsonObject.TryGetPropertyValue is called.\n\n[LogicAgent]: The logic for determining whether a property exists is duplicated in HaveProperty and NotHaveProperty, violating DRY principle.\n\n[LogicAgent]: Variable name 'hasProperty' is a verb phrase but used as a boolean flag; naming is acceptable but could be clearer as 'propertyExists'.",
+          "recommendation": "Validate that the property value is not null (e.g., check JsonNodeKind) in addition to its existence before considering it present.\nAdd a guard clause that checks 'code' for null or whitespace and fail the assertion with a clear message.\nExtract the property‑existence check into a private helper method returning a bool.\nRename 'hasProperty' to 'propertyExists' for better readability.",
+          "lowConfidence": false,
+          "selfEvalTotal": 8,
+          "grounded": true,
+          "codeSnippet": "bool hasProperty = Subject is JsonObject obj && obj.TryGetPropertyValue(code, out _);"
+        },
+        {
+          "severity": "Low",
+          "category": "Other",
+          "file": "Src/FluentAssertions/Specialized/JsonNodeAssertions.cs",
+          "line": 80,
+          "description": "The .BecauseOf(because, becauseArgs) call appears twice in the NotHaveProperty chain, once before the null‑check and again before the FailWith, which is unnecessary.",
+          "recommendation": "Remove the second .BecauseOf call to keep the assertion chain concise.",
+          "lowConfidence": false,
+          "selfEvalTotal": 8,
+          "grounded": true,
+          "codeSnippet": ".BecauseOf(because, becauseArgs)"
+        }
+      ],
+      "unmatchedGroundTruth": [
+        "Double check: Is it only `JsonObject`s that have properties?",
+        "A corner case: If `Subject` is not a `JsonObject`, `NotHaveProperty` passes. I can't recall on the top of my head how we handle this in other `Not` assertions."
+      ],
+      "tokens": {
+        "calls": 1,
+        "promptTokens": 1104,
+        "completionTokens": 594,
+        "byModel": {
+          "openai/gpt-oss-120b": {
+            "calls": 1,
+            "promptTokens": 1104,
+            "completionTokens": 594
+          }
+        },
+        "total": 1698
+      }
+    },
+    {
+      "row": 5,
+      "repoUrl": "https://github.com/dotnet/aspire",
+      "commitSha": "45651ce2d1e650c6050283bc22308b1524b891fa",
+      "status": "ok",
+      "pipelineSeconds": 4.11,
+      "predictedCount": 3,
+      "groundTruthCount": 2,
+      "excludedLowConfidence": 3,
+      "matchedPredictions": 0,
+      "matchedGroundTruth": 0,
+      "precision": 0,
+      "recall": 0,
+      "f1": 0,
+      "pipelineSummary": "Reviewed 7 files. Found 6 findings across 4 files: 1 critical, 3 high, 2 medium, 0 low. 1 finding(s) could not be matched to a specific line. 2 finding(s) were reported by more than one agent. Grounding check: 3 of 6 finding(s) quote code that could not be found in the commit and are flagged. Self-evaluation scored 6/6 findings (threshold 5/9); none flagged low-confidence. Judge: openai/gpt-oss-120b, the same model that wrote these findings (same-model judges tend to favour their own output; set MULTIAGENT_MODEL_EVAL to a different model family for an independent judge).",
+      "matches": [],
+      "unmatchedPredictions": [
+        {
+          "severity": "Critical",
+          "category": "Other",
+          "file": "src/Aspire.Dashboard/ServiceClient/SqliteResourceRepository.cs",
+          "line": 24,
+          "description": "[SecurityAgent]: The configurable _maxConsoleLogCount is accepted from DashboardOptions without validation, allowing negative or excessively large values that could cause unintended deletion of console logs or resource exhaustion.\n\n[LogicAgent]: The private field `_maxConsoleLogCount` is never initialized from the injected `DashboardOptions`, so it defaults to 0 causing `TrimConsoleLogs` to delete all console log rows whenever it runs.",
+          "recommendation": "Validate that maxConsoleLogCount is a positive integer within an acceptable range before storing it.\nAssign `_maxConsoleLogCount` from `options.Value.Frontend.MaxConsoleLogCount` in the constructor.",
+          "lowConfidence": false,
+          "selfEvalTotal": 8,
+          "grounded": true,
+          "codeSnippet": "private readonly int _maxConsoleLogCount;"
+        },
+        {
+          "severity": "High",
+          "category": "BlockingAsyncCall",
+          "file": "tests/Aspire.Dashboard.Tests/Shared/SqliteRepositoryTestHelpers.cs",
+          "line": 164,
+          "description": "Blocking call: `database.InitializeSchemaAsync(...).GetAwaiter().GetResult()` blocks the thread while waiting for an async operation, risking deadlocks and adding unnecessary latency to test setup.",
+          "recommendation": "Make the calling method async and await `InitializeSchemaAsync` instead of blocking.",
+          "lowConfidence": false,
+          "selfEvalTotal": 8,
+          "grounded": true,
+          "codeSnippet": "database.InitializeSchemaAsync(cancellationToken: CancellationToken.None).GetAwaiter().GetResult();"
+        },
+        {
+          "severity": "High",
+          "category": "Other",
+          "file": "src/Aspire.Dashboard/ServiceClient/SqliteResourceRepository.Storage.cs",
+          "line": 105,
+          "description": "[SecurityAgent]: TrimConsoleLogs method receives maxConsoleLogCount from configuration without validation; a negative value could cause the DELETE statement to remove all rows.\n\n[LogicAgent]: `TrimConsoleLogs` accepts `maxConsoleLogCount` without validating that it is non‑negative, which could result in deleting more rows than intended if a negative value is passed.",
+          "recommendation": "Add a guard clause to ensure maxConsoleLogCount is >= 0 before executing the DELETE query.\nValidate `maxConsoleLogCount` and throw an `ArgumentOutOfRangeException` when it is less than zero.",
+          "lowConfidence": false,
+          "selfEvalTotal": 9,
+          "grounded": true,
+          "codeSnippet": "private static void TrimConsoleLogs(SqliteConnection connection, IDbTransaction transaction, int maxConsoleLogCount)"
+        }
+      ],
+      "unmatchedGroundTruth": [
+        "doesn't need full table scanning for count.",
+        "Should we also provide a memory size limit (based on an average expected log size)."
+      ],
+      "tokens": {
+        "calls": 1,
+        "promptTokens": 2206,
+        "completionTokens": 1025,
+        "byModel": {
+          "openai/gpt-oss-120b": {
+            "calls": 1,
+            "promptTokens": 2206,
+            "completionTokens": 1025
+          }
+        },
+        "total": 3231
+      }
+    },
+    {
+      "row": 6,
+      "repoUrl": "https://github.com/ppy/osu",
+      "commitSha": "61e42030e767d4f9293ea4000eb43b4f0a894da0",
+      "status": "ok",
+      "pipelineSeconds": 5.24,
+      "predictedCount": 6,
+      "groundTruthCount": 2,
+      "excludedLowConfidence": 3,
+      "matchedPredictions": 0,
+      "matchedGroundTruth": 0,
+      "precision": 0,
+      "recall": 0,
+      "f1": 0,
+      "pipelineSummary": "Reviewed 8 files. Found 9 findings across 6 files: 0 critical, 4 high, 5 medium, 0 low. 4 finding(s) could not be matched to a specific line. 2 finding(s) were reported by more than one agent. Grounding check: 3 of 9 finding(s) quote code that could not be found in the commit and are flagged. Self-evaluation scored 9/9 findings (threshold 5/9); none flagged low-confidence. Judge: openai/gpt-oss-120b, the same model that wrote these findings (same-model judges tend to favour their own output; set MULTIAGENT_MODEL_EVAL to a different model family for an independent judge).",
+      "matches": [],
+      "unmatchedPredictions": [
+        {
+          "severity": "High",
+          "category": "Other",
+          "file": "osu.Game/Users/Drawables/DrawableTeamFlag.cs",
+          "line": 49,
+          "description": "User-controlled FlagUrl is passed directly to OnlineAssetCachingStore without validation, allowing SSRF or malicious content injection.",
+          "recommendation": "Validate and whitelist URL schemes and domains before loading assets.",
+          "lowConfidence": false,
+          "selfEvalTotal": 8,
+          "grounded": true,
+          "codeSnippet": "if (team?.FlagUrl != null)\n    sprite.Texture = textures.Get(team.FlagUrl);"
+        },
+        {
+          "severity": "High",
+          "category": "Other",
+          "file": "osu.Game/Users/Drawables/DrawableAvatar.cs",
+          "line": 35,
+          "description": "[SecurityAgent]: User avatar URL is injected into OnlineAssetCachingStore without sanitisation, exposing the client to malicious remote resources.\n\n[PerformanceAgent]: Each avatar drawable loads its image via `onlineTextures.Get(user.AvatarUrl)` inside the `load` method, causing a separate network/database request per avatar displayed (N+1 pattern). When many avatars are shown (e.g., leaderboards, chat), this adds a network round‑trip for each item.\n\n[LogicAgent]: The injected parameter 'onlineTextures' is not used inside the method, which may indicate a missing implementation or dead code.",
+          "recommendation": "Sanitize and restrict avatar URLs to trusted domains and enforce HTTPS.\nBatch pre‑fetch avatar URLs or cache them in a shared dictionary before creating drawables, and reuse the cached texture.\nEither utilize 'onlineTextures' for loading avatar textures or remove the parameter to avoid confusion.",
+          "lowConfidence": false,
+          "selfEvalTotal": 8,
+          "grounded": true,
+          "codeSnippet": "private void load(LargeTextureStore textures, OnlineAssetCachingStore onlineTextures)"
+        },
+        {
+          "severity": "High",
+          "category": "Other",
+          "file": "osu.Game/Users/Drawables/DrawableTeamFlag.cs",
+          "line": 47,
+          "description": "[PerformanceAgent]: Each team flag drawable calls `textures.Get(team.FlagUrl)` inside the `load` method, issuing an individual request for every flag image displayed, leading to N+1 network/database calls.\n\n[LogicAgent]: The method now expects an OnlineAssetCachingStore but the parameter name 'textures' may mislead developers; also, the previous LargeTextureStore dependency is removed without confirming all callers are updated.",
+          "recommendation": "Collect all needed flag URLs ahead of time and load them in a single batch, or ensure the caching store is used to retrieve already‑cached textures.\nRename the parameter to 'onlineTextures' for clarity and verify all callers provide the correct dependency.",
+          "lowConfidence": false,
+          "selfEvalTotal": 8,
+          "grounded": true,
+          "codeSnippet": "private void load(OnlineAssetCachingStore textures)"
+        },
+        {
+          "severity": "High",
+          "category": "Other",
+          "file": "osu.Game/Users/UserCoverBackground.cs",
+          "line": 54,
+          "description": "The load method now receives OnlineAssetCachingStore but the variable name 'textures' is ambiguous, and existing callers may still pass a LargeTextureStore, causing runtime DI failures.",
+          "recommendation": "Rename the parameter to 'onlineTextures' and ensure all dependency loaders are updated to provide OnlineAssetCachingStore.",
+          "lowConfidence": false,
+          "selfEvalTotal": 9,
+          "grounded": true,
+          "codeSnippet": "private void load(OnlineAssetCachingStore textures)"
+        },
+        {
+          "severity": "Medium",
+          "category": "CodeSmell",
+          "file": "osu.Game/Database/RealmAccess.cs",
+          "line": 0,
+          "description": "Class 'RealmAccess' contains 52 members, violating the Single Responsibility Principle and making the class difficult to maintain.",
+          "recommendation": "Extract related groups of members into separate cohesive classes or services.",
+          "lowConfidence": false,
+          "selfEvalTotal": 7,
+          "grounded": true,
+          "codeSnippet": "public class RealmAccess : IDisposable { ... }"
+        },
+        {
+          "severity": "Medium",
+          "category": "Other",
+          "file": "osu.Game/Graphics/OnlineAssetCachingStore.cs",
+          "line": 1,
+          "description": "Assets fetched from arbitrary URLs are cached to disk without integrity verification, risking storage of tampered or malicious files.",
+          "recommendation": "Implement hash verification or content‑type checks before caching downloaded assets.",
+          "lowConfidence": false,
+          "selfEvalTotal": 9,
+          "grounded": true,
+          "codeSnippet": "// Store for retrieval and caching of assets (background, avatars, covers) retrieved from the web to disk."
+        }
+      ],
+      "unmatchedGroundTruth": [
+        "I think we'll want to make this `[Indexed]` to avoid the startup purge potentially blowing out in time taken. I can imagine the query getting slow once we start tracking thousands of avatars / covers.",
+        "We currently don't perform many background realm writes elsewhere in the game, which will change once this gets used more regularly. Based on a subset of people having issues with difficulty calculation adding game-wide stutters, I'm very curious to see how this performs for a wider test audience. It may signal the end of realm as an option for us, worst case. If we wanted to play things safe and"
+      ],
+      "tokens": {
+        "calls": 2,
+        "promptTokens": 3332,
+        "completionTokens": 1873,
+        "byModel": {
+          "openai/gpt-oss-120b": {
+            "calls": 2,
+            "promptTokens": 3332,
+            "completionTokens": 1873
+          }
+        },
+        "total": 5205
+      }
+    },
+    {
+      "row": 7,
+      "repoUrl": "https://github.com/microsoft/kiota",
+      "commitSha": "8657cefa2b61f2eca451bd11f2a527c6cb69e081",
+      "status": "ok",
+      "pipelineSeconds": 1.15,
+      "predictedCount": 1,
+      "groundTruthCount": 2,
+      "excludedLowConfidence": 0,
+      "matchedPredictions": 0,
+      "matchedGroundTruth": 0,
+      "precision": 0,
+      "recall": 0,
+      "f1": 0,
+      "pipelineSummary": "Reviewed 2 files. Found 1 findings across 1 files: 1 critical, 0 high, 0 medium, 0 low. Grounding check: all 1 checkable finding(s) quote code that exists in the commit. Self-evaluation scored 1/1 findings (threshold 5/9); none flagged low-confidence. Judge: openai/gpt-oss-120b, the same model that wrote these findings (same-model judges tend to favour their own output; set MULTIAGENT_MODEL_EVAL to a different model family for an independent judge).",
+      "matches": [],
+      "unmatchedPredictions": [
+        {
+          "severity": "Critical",
+          "category": "Other",
+          "file": "src/Kiota.Builder/Writers/TypeScript/TypeScriptConventionService.cs",
+          "line": 203,
+          "description": "Caching the usings per block with ConditionalWeakTable causes stale alias data when a using is added after the first lookup, breaking scenarios where aliases are introduced later (e.g., GetTypescriptTypeString_PicksUpAnAliasAssignedAfterAnEarlierLookup).",
+          "recommendation": "Do not cache the usings; recompute them on each GetTypeAlias call or invalidate the cache whenever a using is added to the block.",
+          "lowConfidence": false,
+          "selfEvalTotal": 8,
+          "grounded": true,
+          "codeSnippet": "var usings = usingsByBlock.GetValue(block, static b => GatherUsings(b));"
+        }
+      ],
+      "unmatchedGroundTruth": [
+        "why is it static? if kiota's instance does multiple generations in a row, this will keep growing.",
+        "is there any specific reason why you used CWT instead of ConcurrentDictionary here?"
+      ],
+      "tokens": {
+        "calls": 1,
+        "promptTokens": 844,
+        "completionTokens": 313,
+        "byModel": {
+          "openai/gpt-oss-120b": {
+            "calls": 1,
+            "promptTokens": 844,
+            "completionTokens": 313
+          }
+        },
+        "total": 1157
+      }
+    },
+    {
+      "row": 8,
+      "repoUrl": "https://github.com/nunit/nunit",
+      "commitSha": "b6611848e7ec724751f198bec8dd01976823e4e5",
+      "status": "ok",
+      "pipelineSeconds": 3.48,
+      "predictedCount": 5,
+      "groundTruthCount": 2,
+      "excludedLowConfidence": 1,
+      "matchedPredictions": 0,
+      "matchedGroundTruth": 0,
+      "precision": 0,
+      "recall": 0,
+      "f1": 0,
+      "pipelineSummary": "Reviewed 7 files. Found 6 findings across 5 files: 0 critical, 4 high, 1 medium, 1 low. 1 finding(s) could not be matched to a specific line. Grounding check: 1 of 6 finding(s) quote code that could not be found in the commit and are flagged. Self-evaluation scored 6/6 findings (threshold 5/9); none flagged low-confidence. Judge: openai/gpt-oss-120b, the same model that wrote these findings (same-model judges tend to favour their own output; set MULTIAGENT_MODEL_EVAL to a different model family for an independent judge).",
+      "matches": [],
+      "unmatchedPredictions": [
+        {
+          "severity": "High",
+          "category": "Other",
+          "file": "src/NUnitFramework/framework/Assert.That.cs",
+          "line": 115,
+          "description": "Multiple overloads of Assert.That contain identical logic, leading to duplicated code and higher maintenance cost.",
+          "recommendation": "Consolidate the overloads by delegating to a single private helper that contains the shared implementation.",
+          "lowConfidence": false,
+          "selfEvalTotal": 8,
+          "grounded": true,
+          "codeSnippet": "ConstraintEvaluator.Evaluate(code, expr, message, actualExpression, constraintExpression, ReportFailure);"
+        },
+        {
+          "severity": "High",
+          "category": "Other",
+          "file": "src/NUnitFramework/framework/Assert.That.cs",
+          "line": 118,
+          "description": "The refactored Assert.That passes the expr argument directly to ConstraintEvaluator.Evaluate without checking for null, which could cause a NullReferenceException when expr.Resolve() is invoked inside Evaluate.",
+          "recommendation": "Add an ArgumentNullException check for expr before calling ConstraintEvaluator.Evaluate.",
+          "lowConfidence": false,
+          "selfEvalTotal": 9,
+          "grounded": true,
+          "codeSnippet": "ConstraintEvaluator.Evaluate(code, expr, message, actualExpression, constraintExpression, ReportFailure);"
+        },
+        {
+          "severity": "High",
+          "category": "Other",
+          "file": "src/NUnitFramework/framework/Warn.cs",
+          "line": 69,
+          "description": "Warn.Until passes the expr argument to ConstraintEvaluator.Evaluate without null validation, risking a NullReferenceException if the caller supplies a null constraint expression.",
+          "recommendation": "Validate that expr is not null and throw ArgumentNullException before invoking ConstraintEvaluator.Evaluate.",
+          "lowConfidence": false,
+          "selfEvalTotal": 9,
+          "grounded": true,
+          "codeSnippet": "ConstraintEvaluator.Evaluate(code, expr, message, actualExpression, constraintExpression, IssueUnlessWarning);"
+        },
+        {
+          "severity": "Medium",
+          "category": "SolidViolation",
+          "file": "src/NUnitFramework/framework/Internal/Commands/TestActionCommand.cs",
+          "line": 22,
+          "description": "TestActionCommand directly references the concrete TestMethod type, violating the Dependency Inversion Principle and reducing testability of the command.",
+          "recommendation": "Introduce an ITest interface abstraction and depend on it instead of the concrete TestMethod class.",
+          "lowConfidence": false,
+          "selfEvalTotal": 8,
+          "grounded": true,
+          "codeSnippet": "Guard.ArgumentValid(innerCommand.Test is TestMethod, \"TestActionCommand may only apply to a TestMethod\", nameof(innerCommand));"
+        },
+        {
+          "severity": "Low",
+          "category": "Naming",
+          "file": "src/NUnitFramework/framework/Internal/Commands/TestActionHookRunner.cs",
+          "line": 14,
+          "description": "The static class name TestActionHookRunner does not clearly convey that it is responsible for invoking hooks around test actions; a more descriptive name would improve readability.",
+          "recommendation": "Rename TestActionHookRunner to TestActionHookExecutor to better reflect its purpose.",
+          "lowConfidence": false,
+          "selfEvalTotal": 9,
+          "grounded": true,
+          "codeSnippet": "internal static class TestActionHookRunner"
+        }
+      ],
+      "unmatchedGroundTruth": [
+        "If we change this to `() => message` we can reduce the number of versions of `ConstraintEvaluator` overloads to 1.",
+        "The only difference between this and the next method is the `nameof(Unless)` vs `nameof(If)` which could have been a parameter."
+      ],
+      "tokens": {
+        "calls": 1,
+        "promptTokens": 2074,
+        "completionTokens": 1108,
+        "byModel": {
+          "openai/gpt-oss-120b": {
+            "calls": 1,
+            "promptTokens": 2074,
+            "completionTokens": 1108
+          }
+        },
+        "total": 3182
+      }
+    },
+    {
+      "row": 9,
+      "repoUrl": "https://github.com/nunit/nunit",
+      "commitSha": "8502a74db31f93ffc9773035904006fc8cdd1881",
+      "status": "ok",
+      "pipelineSeconds": 3.36,
+      "predictedCount": 4,
+      "groundTruthCount": 3,
+      "excludedLowConfidence": 3,
+      "matchedPredictions": 0,
+      "matchedGroundTruth": 0,
+      "precision": 0,
+      "recall": 0,
+      "f1": 0,
+      "pipelineSummary": "Reviewed 5 files. Found 7 findings across 4 files: 1 critical, 5 high, 0 medium, 1 low. 4 finding(s) could not be matched to a specific line. 1 near-duplicate finding(s) without a line number were merged. 1 finding(s) were reported by more than one agent. Grounding check: 3 of 7 finding(s) quote code that could not be found in the commit and are flagged. Self-evaluation scored 7/7 findings (threshold 5/9); none flagged low-confidence. Judge: openai/gpt-oss-120b, the same model that wrote these findings (same-model judges tend to favour their own output; set MULTIAGENT_MODEL_EVAL to a different model family for an independent judge).",
+      "matches": [],
+      "unmatchedPredictions": [
+        {
+          "severity": "Critical",
+          "category": "Other",
+          "file": "src/NUnitFramework/testdata/TestFilterFixtures.cs",
+          "line": 51,
+          "description": "[PerformanceAgent]: The test fixture class name is extremely long, inflating metadata and causing extra work for reflection during test discovery.\n\n[LogicAgent]: The test fixture class name exceeds typical identifier length limits, risking compilation failure or runtime reflection errors.",
+          "recommendation": "Rename the class to a shorter, meaningful name.\nRename the class to a reasonable length while preserving test intent.",
+          "lowConfidence": false,
+          "selfEvalTotal": 7,
+          "grounded": true,
+          "codeSnippet": "public class FixtureWithLongNames_JestlaquissemperlectusMaurisetligulafringillaiaculisnislsagittistemporliberoSedinterdummagnasitametfeugiatullamcorperlectusjustosollicitudinmagnaasollicitudinmagnaaugueveljustoDonecfacilisisinmassanecmollisVivamussitametnullaultriciesaliquammaurisegetgravidarisusDonecleonunccongueeuelementumsedconvallisatortorClassaptenttacitisociosquadlitoratorquentperconubianostraperinceptoshimenaeosSedidipsumnisiEtiameleifendmassavitaetortordauctoraefficixtsap"
+        },
+        {
+          "severity": "High",
+          "category": "Other",
+          "file": "src/NUnitFramework/framework/Internal/Filters/PartitionFilter.cs",
+          "line": 26,
+          "description": "Changing PartitionFilter from sealed to abstract allows inheritance but removes the ability to instantiate it directly, breaking existing code that creates a PartitionFilter instance.",
+          "recommendation": "Revert to sealed or provide a concrete subclass used by callers.",
+          "lowConfidence": false,
+          "selfEvalTotal": 9,
+          "grounded": true,
+          "codeSnippet": "internal abstract class PartitionFilter : TestFilter"
+        },
+        {
+          "severity": "High",
+          "category": "Other",
+          "file": "src/NUnitFramework/framework/Internal/TestFilter.cs",
+          "line": 198,
+          "description": "Removed the null‑forgiving operator when returning the partition filter, allowing a possible null to propagate if TryCreate incorrectly returns true with a null out value.",
+          "recommendation": "Add a null check or retain the null‑forgiving operator to guarantee non‑null return.",
+          "lowConfidence": false,
+          "selfEvalTotal": 9,
+          "grounded": true,
+          "codeSnippet": "return partitionFilter;"
+        },
+        {
+          "severity": "Low",
+          "category": "Other",
+          "file": "src/NUnitFramework/tests/Internal/Filters/PartitionFilterTests.cs",
+          "line": 14,
+          "description": "`TestFixtureSource` generates all test cases at discovery time, which can increase memory usage and slow test startup when many cases are produced.",
+          "recommendation": "Limit the number of generated cases or switch to a parameterized test (`[TestCaseSource]`) that creates cases lazily.",
+          "lowConfidence": false,
+          "selfEvalTotal": 9,
+          "grounded": true,
+          "codeSnippet": "[TestFixtureSource(nameof(GetPartitionFilterTestCases))]"
+        }
+      ],
+      "unmatchedGroundTruth": [
+        "Can we convert this to an `enum`, so we don't need to do `string` comparisons? Although it is only used once to determine the filter to create, so not to bad.",
+        "Do we care if someone uses `1:10:fixture`? or `1/10/fixture`? Yes, `1/10:fixture` reads nicer, but otherwise it is the same.",
+        "Same here, don't care if the user used `:` or `/` as separator."
+      ],
+      "tokens": {
+        "calls": 1,
+        "promptTokens": 2237,
+        "completionTokens": 1300,
+        "byModel": {
+          "openai/gpt-oss-120b": {
+            "calls": 1,
+            "promptTokens": 2237,
+            "completionTokens": 1300
+          }
+        },
+        "total": 3537
+      }
+    },
+    {
+      "row": 10,
+      "repoUrl": "https://github.com/nunit/nunit",
+      "commitSha": "62098a97927db4950ded58784fc395bbf5babc64",
+      "status": "ok",
+      "pipelineSeconds": 14.78,
+      "predictedCount": 7,
+      "groundTruthCount": 3,
+      "excludedLowConfidence": 0,
+      "matchedPredictions": 2,
+      "matchedGroundTruth": 2,
+      "precision": 0.2857142857142857,
+      "recall": 0.6666666666666666,
+      "f1": 0.4,
+      "pipelineSummary": "Reviewed 3 files. Found 7 findings across 3 files: 2 critical, 3 high, 0 medium, 2 low. Grounding check: all 7 checkable finding(s) quote code that exists in the commit. Self-evaluation scored 7/7 findings (threshold 5/9); none flagged low-confidence. Judge: openai/gpt-oss-120b, the same model that wrote these findings (same-model judges tend to favour their own output; set MULTIAGENT_MODEL_EVAL to a different model family for an independent judge).",
+      "matches": [
+        {
+          "finding": {
+            "severity": "High",
+            "category": "Other",
+            "file": "src/NUnitFramework/nunitlite/TextUI.cs",
+            "line": 230,
+            "description": "DisplayRunSettings now iterates over all run settings and prints them to the console without filtering, potentially exposing sensitive configuration values (e.g., passwords, tokens, internal trace levels).",
+            "recommendation": "Filter out or mask sensitive keys before writing them to the output.",
+            "lowConfidence": false,
+            "selfEvalTotal": 6,
+            "grounded": true,
+            "codeSnippet": "foreach (KeyValuePair<string, object> setting in runSettings)"
+          },
+          "groundTruth": "FYI: `InternalTraceLevel` on the other hand can be null and will now be omitted if not specified.",
+          "similarity": 0.312
+        },
+        {
+          "finding": {
+            "severity": "High",
+            "category": "Other",
+            "file": "src/NUnitFramework/nunitlite/TextUI.cs",
+            "line": 258,
+            "description": "WriteRunSetting writes a value inside pipe characters without checking for null, resulting in output like \"||\" which may be confusing.",
+            "recommendation": "Treat null values explicitly, e.g., display \"<null>\" or omit the pipes.",
+            "lowConfidence": false,
+            "selfEvalTotal": 6,
+            "grounded": true,
+            "codeSnippet": "Writer.WriteLabelLine($\"    {name}: \", $\"|{value}|\");"
+          },
+          "groundTruth": "FYI: As `_options.WorkDirectory` is never `null`, this will always be included in _runSettings_.",
+          "similarity": 0.25
+        }
+      ],
+      "unmatchedPredictions": [
+        {
+          "severity": "Critical",
+          "category": "Other",
+          "file": "src/NUnitFramework/nunitlite/TextRunner.cs",
+          "line": 274,
+          "description": "The variable 'runSettings' is not defined in the scope of RunTests, causing a compile error when calling ReportResults(result, runSettings) and _textUI.DisplayRunSettings(runSettings).",
+          "recommendation": "Pass the run settings created by MakeRunSettings(_options) directly or declare a local variable before use.",
+          "lowConfidence": false,
+          "selfEvalTotal": 9,
+          "grounded": true,
+          "codeSnippet": "ReportResults(result, runSettings);"
+        },
+        {
+          "severity": "Critical",
+          "category": "Other",
+          "file": "src/NUnitFramework/nunitlite/TextRunner.cs",
+          "line": 310,
+          "description": "The variable 'runSettings' is not defined when calling _textUI.DisplayRunSettings(runSettings), leading to a compile error.",
+          "recommendation": "Use the same run settings instance created for ReportResults or compute it locally.",
+          "lowConfidence": false,
+          "selfEvalTotal": 9,
+          "grounded": true,
+          "codeSnippet": "_textUI.DisplayRunSettings(runSettings);"
+        },
+        {
+          "severity": "High",
+          "category": "Other",
+          "file": "src/NUnitFramework/nunitlite/TextUI.cs",
+          "line": 224,
+          "description": "DisplayRunSettings(IDictionary<string, object> runSettings) does not validate that 'runSettings' is non‑null before accessing it, risking a NullReferenceException if called with null.",
+          "recommendation": "Add a null check and handle the case gracefully, e.g., return early or throw ArgumentNullException.",
+          "lowConfidence": false,
+          "selfEvalTotal": 7,
+          "grounded": true,
+          "codeSnippet": "internal void DisplayRunSettings(IDictionary<string, object> runSettings)"
+        },
+        {
+          "severity": "Low",
+          "category": "Other",
+          "file": "src/NUnitFramework/nunitlite/TextUI.cs",
+          "line": 253,
+          "description": "Iterating over a generic IDictionary via the non‑generic IDictionary interface creates a DictionaryEntry for each item, causing boxing and extra allocations.",
+          "recommendation": "Change the method to accept IDictionary<string, object> (or the concrete generic type) and iterate with foreach (var kvp in genericDictionary) to avoid boxing.",
+          "lowConfidence": false,
+          "selfEvalTotal": 5,
+          "grounded": true,
+          "codeSnippet": "foreach (DictionaryEntry entry in dictionary)"
+        },
+        {
+          "severity": "Low",
+          "category": "Other",
+          "file": "src/NUnitFramework/nunitlite.tests/TextUITests.cs",
+          "line": 104,
+          "description": "The expected report string is built using multiple '+' operators, creating several intermediate string instances.",
+          "recommendation": "Replace the concatenation with a verbatim string literal or a StringBuilder to reduce temporary allocations.",
+          "lowConfidence": false,
+          "selfEvalTotal": 9,
+          "grounded": true,
+          "codeSnippet": "\"Run Settings\\n\" +\n                \"    CustomFrameworkSetting: |enabled|\\n\" +\n                \"    NumberOfTestWorkers: |4|\\n\" +\n                \"    TestParametersDictionary:\\n\" +\n                \"        environment -> |ci|\\n\\n\""
+        }
+      ],
+      "unmatchedGroundTruth": [
+        "I know this was previously output, but if the user doesn't specify it explicitly, do we need to display it?"
+      ],
+      "tokens": {
+        "calls": 1,
+        "promptTokens": 2215,
+        "completionTokens": 1032,
+        "byModel": {
+          "openai/gpt-oss-120b": {
+            "calls": 1,
+            "promptTokens": 2215,
+            "completionTokens": 1032
+          }
+        },
+        "total": 3247
+      }
+    },
+    {
+      "row": 11,
+      "repoUrl": "https://github.com/MonoGame/MonoGame",
+      "commitSha": "54c93ddc11e70b0a1abd98797c3ce82c6e4a729f",
+      "status": "ok",
+      "pipelineSeconds": 2.26,
+      "predictedCount": 1,
+      "groundTruthCount": 2,
+      "excludedLowConfidence": 3,
+      "matchedPredictions": 0,
+      "matchedGroundTruth": 0,
+      "precision": 0,
+      "recall": 0,
+      "f1": 0,
+      "pipelineSummary": "Reviewed 5 files. Found 4 findings across 2 files: 1 critical, 2 high, 1 medium, 0 low. 3 finding(s) could not be matched to a specific line. Grounding check: 3 of 4 finding(s) quote code that could not be found in the commit and are flagged. Self-evaluation scored 4/4 findings (threshold 5/9); 1 flagged low-confidence and shown in a separate section. Judge: openai/gpt-oss-120b, the same model that wrote these findings (same-model judges tend to favour their own output; set MULTIAGENT_MODEL_EVAL to a different model family for an independent judge).",
+      "matches": [],
+      "unmatchedPredictions": [
+        {
+          "severity": "Critical",
+          "category": "Other",
+          "file": "MonoGame.Framework/Platform/Graphics/GraphicsDevice.OpenGL.cs",
+          "line": 739,
+          "description": "Unconditionally calling DeleteRenderbuffer on the color buffer may delete a texture ID instead of a renderbuffer, causing OpenGL errors and potential resource leaks.",
+          "recommendation": "Add a guard to ensure the buffer is a renderbuffer before deleting it.",
+          "lowConfidence": false,
+          "selfEvalTotal": 8,
+          "grounded": true,
+          "codeSnippet": "this.framebufferHelper.DeleteRenderbuffer(color);"
+        }
+      ],
+      "unmatchedGroundTruth": [
+        "Don't like the temporary allocation here... can we just do the removal in one pass?",
+        "I guess you're using a try/finally here because of a concern that an exception being thrown from SetRenderTargets and the _tempRenderTargetBinding never being cleared? No other code in GraphicsDevice does this... so it stands out as odd. So i wonder if that safety for the odd case is worth it. Also i dislike the same long comment repeated 4 times in the class. You can keep it short: `// Clear temp"
+      ],
+      "tokens": {
+        "calls": 1,
+        "promptTokens": 1509,
+        "completionTokens": 774,
+        "byModel": {
+          "openai/gpt-oss-120b": {
+            "calls": 1,
+            "promptTokens": 1509,
+            "completionTokens": 774
+          }
+        },
+        "total": 2283
+      }
+    },
+    {
+      "row": 12,
+      "repoUrl": "https://github.com/MonoGame/MonoGame",
+      "commitSha": "04d9799f727678245af893587233c773b7c4f15a",
+      "status": "ok",
+      "pipelineSeconds": 2.59,
+      "predictedCount": 4,
+      "groundTruthCount": 2,
+      "excludedLowConfidence": 0,
+      "matchedPredictions": 0,
+      "matchedGroundTruth": 0,
+      "precision": 0,
+      "recall": 0,
+      "f1": 0,
+      "pipelineSummary": "Reviewed 2 files. Found 4 findings across 1 files: 0 critical, 2 high, 1 medium, 1 low. Grounding check: all 4 checkable finding(s) quote code that exists in the commit. Self-evaluation scored 4/4 findings (threshold 5/9); none flagged low-confidence. Judge: openai/gpt-oss-120b, the same model that wrote these findings (same-model judges tend to favour their own output; set MULTIAGENT_MODEL_EVAL to a different model family for an independent judge).",
+      "matches": [],
+      "unmatchedPredictions": [
+        {
+          "severity": "High",
+          "category": "Other",
+          "file": "MonoGame.Framework/Audio/Xact/AudioEngine.cs",
+          "line": 92,
+          "description": "Changing the thrown exception from ArgumentNullException to ArgumentException alters the method contract and may break callers that specifically catch ArgumentNullException.",
+          "recommendation": "Restore the original ArgumentNullException or clearly document the breaking change in the API.",
+          "lowConfidence": false,
+          "selfEvalTotal": 8,
+          "grounded": true,
+          "codeSnippet": "throw new ArgumentException(\"'settingsFile' cannot be left null or empty!\", \"settingsFile\");"
+        },
+        {
+          "severity": "High",
+          "category": "Other",
+          "file": "MonoGame.Framework/Audio/Xact/AudioEngine.cs",
+          "line": 55,
+          "description": "OpenStream does not validate the filePath argument; passing null can cause TitleContainer.OpenStream to throw an unexpected exception or NullReferenceException.",
+          "recommendation": "Add a null or empty check for filePath and throw an ArgumentException before calling TitleContainer.OpenStream.",
+          "lowConfidence": false,
+          "selfEvalTotal": 6,
+          "grounded": true,
+          "codeSnippet": "var stream = TitleContainer.OpenStream(filePath);"
+        },
+        {
+          "severity": "Medium",
+          "category": "InputValidation",
+          "file": "MonoGame.Framework/Audio/Xact/AudioEngine.cs",
+          "line": 91,
+          "description": "The constructor accepts an arbitrary file path (settingsFile) and later opens it without validating that the path is within a trusted directory, allowing path traversal or unauthorized file read.",
+          "recommendation": "Validate that the provided settingsFile path is confined to the intended assets directory and reject or sanitize any traversal sequences.",
+          "lowConfidence": false,
+          "selfEvalTotal": 6,
+          "grounded": true,
+          "codeSnippet": "public AudioEngine(string settingsFile)"
+        },
+        {
+          "severity": "Low",
+          "category": "Other",
+          "file": "MonoGame.Framework/Audio/Xact/AudioEngine.cs",
+          "line": 82,
+          "description": "The obsolete constructor remains public, allowing continued use despite being marked as obsolete, which can lead to misuse.",
+          "recommendation": "Change the constructor's accessibility to protected/internal or remove it entirely after migration period.",
+          "lowConfidence": false,
+          "selfEvalTotal": 8,
+          "grounded": true,
+          "codeSnippet": "[Obsolete(\"Use AudioEngine(string settingsFile) instead. The lookAheadTime and rendererId parameters are not used.\")] public AudioEngine(string settingsFile, TimeSpan lookAheadTime, string rendererId) : this(settingsFile) { }"
+        }
+      ],
+      "unmatchedGroundTruth": [
+        "not sure we can remove this public API point even if the arguments are not used. It may break the public API, so if there are compiled libraries (Nuget's) which are out there calling this method, one upgrade they will error at runtime. What we can do if its not used is `Obsolete` the one that does nothing, then we can remove it at a later date. Although the plan is to integrate FAudio I think, so",
+        "Same here... we cannot remove this. Best we can do is add into the `<remarks>` that the look ahead and render id is unused."
+      ],
+      "tokens": {
+        "calls": 1,
+        "promptTokens": 1548,
+        "completionTokens": 966,
+        "byModel": {
+          "openai/gpt-oss-120b": {
+            "calls": 1,
+            "promptTokens": 1548,
+            "completionTokens": 966
+          }
+        },
+        "total": 2514
+      }
+    }
+  ]
+}
