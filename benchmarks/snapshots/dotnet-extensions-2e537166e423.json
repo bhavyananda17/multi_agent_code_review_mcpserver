@@ -1,0 +1,883 @@
+{
+  "Context": {
+    "RepositoryPath": "/var/folders/cx/j17y0q8103118l_jghqvtnb40000gn/T/5a3799e6-a316-462f-9c1d-ec970c389630",
+    "CommitHash": "2e537166e4231e50cceb66832b9dfd1382e24d1b",
+    "BaseCommit": null,
+    "ChangedFiles": [
+      {
+        "Path": "src/Libraries/Microsoft.Extensions.AI.OpenAI/OpenAISpeechToTextClient.cs",
+        "Additions": 80,
+        "Deletions": 10,
+        "ChangeType": "Modified"
+      },
+      {
+        "Path": "test/Libraries/Microsoft.Extensions.AI.Integration.Tests/Microsoft.Extensions.AI.Integration.Tests.csproj",
+        "Additions": 16,
+        "Deletions": 0,
+        "ChangeType": "Modified"
+      },
+      {
+        "Path": "test/Libraries/Microsoft.Extensions.AI.Integration.Tests/SpeechToTextClientIntegrationTests.cs",
+        "Additions": 17,
+        "Deletions": 0,
+        "ChangeType": "Modified"
+      },
+      {
+        "Path": "test/Libraries/Microsoft.Extensions.AI.Integration.Tests/VerbatimMultiPartHttpHandler.cs",
+        "Additions": 31,
+        "Deletions": 2,
+        "ChangeType": "Modified"
+      },
+      {
+        "Path": "test/Libraries/Microsoft.Extensions.AI.OpenAI.Tests/OpenAISpeechToTextClientTests.cs",
+        "Additions": 149,
+        "Deletions": 0,
+        "ChangeType": "Modified"
+      }
+    ],
+    "Diff": {
+      "Summary": "9 files changed",
+      "Files": [
+        {
+          "Path": "src/Libraries/Microsoft.Extensions.AI.OpenAI/OpenAISpeechToTextClient.cs",
+          "OldPath": "src/Libraries/Microsoft.Extensions.AI.OpenAI/OpenAISpeechToTextClient.cs",
+          "ChangeType": "Modified",
+          "Hunks": [
+            {
+              "OldStart": 24,
+              "OldLines": 10,
+              "NewStart": 24,
+              "NewLines": 6,
+              "Content": " [Experimental(DiagnosticIds.Experiments.AISpeechToText, UrlFormat = DiagnosticIds.UrlFormat)]\n internal sealed class OpenAISpeechToTextClient : ISpeechToTextClient\n {\n-    /// \u003Csummary\u003EFilename to use when audio lacks a name.\u003C/summary\u003E\n-    /// \u003Cremarks\u003EThis information internally is required but is only being used to create a header name in the multipart request.\u003C/remarks\u003E\n-    private const string Filename = \u0022audio.mp3\u0022;\n-\n     /// \u003Csummary\u003EMetadata about the client.\u003C/summary\u003E\n     private readonly SpeechToTextClientMetadata _metadata;\n \n"
+            },
+            {
+              "OldStart": 64,
+              "OldLines": 9,
+              "NewStart": 60,
+              "NewLines": 7,
+              "Content": " \n         SpeechToTextResponse response = new();\n \n-        string filename = audioSpeechStream is FileStream fileStream ?\n-            Path.GetFileName(fileStream.Name) : // Use the file name if we can get one from the stream.\n-            Filename; // Otherwise, use a default name; this is only used to create a header name in the multipart request.\n\u002B        string filename = ResolveFilename(audioSpeechStream);\n \n         if (IsTranslationRequest(options))\n         {\n"
+            },
+            {
+              "OldStart": 120,
+              "OldLines": 9,
+              "NewStart": 114,
+              "NewLines": 7,
+              "Content": "     {\n         _ = Throw.IfNull(audioSpeechStream);\n \n-        string filename = audioSpeechStream is FileStream fileStream ?\n-            Path.GetFileName(fileStream.Name) : // Use the file name if we can get one from the stream.\n-            Filename; // Otherwise, use a default name; this is only used to create a header name in the multipart request.\n\u002B        string filename = ResolveFilename(audioSpeechStream);\n \n         if (IsTranslationRequest(options))\n         {\n"
+            },
+            {
+              "OldStart": 185,
+              "OldLines": 6,
+              "NewStart": 177,
+              "NewLines": 84,
+              "Content": "         options.TextLanguage is not null \u0026\u0026\n         (options.SpeechLanguage is null || options.SpeechLanguage != options.TextLanguage);\n \n\u002B    /// \u003Csummary\u003E\n\u002B    /// Resolves the filename to use for the audio stream in the multipart request.\n\u002B    /// Priority: \u003Csee cref=\u0022FileStream\u0022/\u003E name, then magic-byte detection (seekable streams only), then default.\n\u002B    /// \u003C/summary\u003E\n\u002B    private static string ResolveFilename(Stream audioSpeechStream)\n\u002B    {\n\u002B        const int FormatDetectionByteCount = 12;\n\u002B\n\u002B        if (audioSpeechStream is FileStream fileStream)\n\u002B        {\n\u002B            return Path.GetFileName(fileStream.Name);\n\u002B        }\n\u002B\n\u002B        // For seekable streams positioned at the start, peek at the header to detect audio format, then rewind.\n\u002B        if (audioSpeechStream.CanSeek \u0026\u0026 audioSpeechStream.Position == 0)\n\u002B        {\n\u002B            byte[] header = new byte[FormatDetectionByteCount];\n\u002B            int bytesRead = 0;\n\u002B            while (bytesRead \u003C header.Length)\n\u002B            {\n\u002B                int n = audioSpeechStream.Read(header, bytesRead, header.Length - bytesRead);\n\u002B                if (n \u003C= 0)\n\u002B                {\n\u002B                    break;\n\u002B                }\n\u002B\n\u002B                bytesRead \u002B= n;\n\u002B            }\n\u002B\n\u002B            audioSpeechStream.Position -= bytesRead;\n\u002B            return $\u0022audio.{DetectAudioExtension(header.AsSpan(0, bytesRead))}\u0022;\n\u002B        }\n\u002B\n\u002B        return \u0022audio.mp3\u0022;\n\u002B    }\n\u002B\n\u002B    /// \u003Csummary\u003EDetects the audio format extension from the leading bytes of the audio data.\u003C/summary\u003E\n\u002B    private static string DetectAudioExtension(ReadOnlySpan\u003Cbyte\u003E header)\n\u002B    {\n\u002B        // WAV: \u0022RIFF\u0022 at offset 0 and \u0022WAVE\u0022 at offset 8.\n\u002B        if (header.Length \u003E= 12 \u0026\u0026\n\u002B            header.Slice(0, 4).SequenceEqual(\u0022RIFF\u0022u8) \u0026\u0026\n\u002B            header.Slice(8, 4).SequenceEqual(\u0022WAVE\u0022u8))\n\u002B        {\n\u002B            return \u0022wav\u0022;\n\u002B        }\n\u002B\n\u002B        // WebM/Matroska: EBML header ID at offset 0.\n\u002B        if (header.Length \u003E= 4 \u0026\u0026\n\u002B            header.Slice(0, 4).SequenceEqual((ReadOnlySpan\u003Cbyte\u003E)[0x1A, 0x45, 0xDF, 0xA3]))\n\u002B        {\n\u002B            return \u0022webm\u0022;\n\u002B        }\n\u002B\n\u002B        // M4A/MP4: ISO BMFF \u0022ftyp\u0022 box type at offset 4.\n\u002B        if (header.Length \u003E= 8 \u0026\u0026\n\u002B            header.Slice(4, 4).SequenceEqual(\u0022ftyp\u0022u8))\n\u002B        {\n\u002B            return \u0022m4a\u0022;\n\u002B        }\n\u002B\n\u002B        // MP3: ID3v2 tag at offset 0.\n\u002B        if (header.Length \u003E= 3 \u0026\u0026\n\u002B            header.Slice(0, 3).SequenceEqual(\u0022ID3\u0022u8))\n\u002B        {\n\u002B            return \u0022mp3\u0022;\n\u002B        }\n\u002B\n\u002B        // MP3: MPEG frame sync word (11 set bits).\n\u002B        if (header.Length \u003E= 2 \u0026\u0026\n\u002B            header[0] == 0xFF \u0026\u0026 (header[1] \u0026 0xE0) == 0xE0)\n\u002B        {\n\u002B            return \u0022mp3\u0022;\n\u002B        }\n\u002B\n\u002B        return \u0022mp3\u0022;\n\u002B    }\n\u002B\n     /// \u003Csummary\u003EConverts an extensions options instance to an OpenAI transcription options instance.\u003C/summary\u003E\n     private AudioTranscriptionOptions ToOpenAITranscriptionOptions(SpeechToTextOptions? options)\n     {\n"
+            }
+          ]
+        },
+        {
+          "Path": "test/Libraries/Microsoft.Extensions.AI.Integration.Tests/Microsoft.Extensions.AI.Integration.Tests.csproj",
+          "OldPath": "test/Libraries/Microsoft.Extensions.AI.Integration.Tests/Microsoft.Extensions.AI.Integration.Tests.csproj",
+          "ChangeType": "Modified",
+          "Hunks": [
+            {
+              "OldStart": 20,
+              "OldLines": 12,
+              "NewStart": 20,
+              "NewLines": 28,
+              "Content": " \n   \u003CItemGroup\u003E\n     \u003CNone Remove=\u0022Resources\\audio001.mp3\u0022 /\u003E\n\u002B    \u003CNone Remove=\u0022Resources\\audio001.wav\u0022 /\u003E\n\u002B    \u003CNone Remove=\u0022Resources\\audio001.m4a\u0022 /\u003E\n\u002B    \u003CNone Remove=\u0022Resources\\audio001.webm\u0022 /\u003E\n\u002B    \u003CNone Remove=\u0022Resources\\audio001_noid3.mp3\u0022 /\u003E\n   \u003C/ItemGroup\u003E\n \n   \u003CItemGroup\u003E\n     \u003CEmbeddedResource Include=\u0022Resources\\audio001.mp3\u0022\u003E\n       \u003CCopyToOutputDirectory\u003ENever\u003C/CopyToOutputDirectory\u003E\n     \u003C/EmbeddedResource\u003E\n\u002B    \u003CEmbeddedResource Include=\u0022Resources\\audio001.wav\u0022\u003E\n\u002B      \u003CCopyToOutputDirectory\u003ENever\u003C/CopyToOutputDirectory\u003E\n\u002B    \u003C/EmbeddedResource\u003E\n\u002B    \u003CEmbeddedResource Include=\u0022Resources\\audio001.m4a\u0022\u003E\n\u002B      \u003CCopyToOutputDirectory\u003ENever\u003C/CopyToOutputDirectory\u003E\n\u002B    \u003C/EmbeddedResource\u003E\n\u002B    \u003CEmbeddedResource Include=\u0022Resources\\audio001.webm\u0022\u003E\n\u002B      \u003CCopyToOutputDirectory\u003ENever\u003C/CopyToOutputDirectory\u003E\n\u002B    \u003C/EmbeddedResource\u003E\n\u002B    \u003CEmbeddedResource Include=\u0022Resources\\audio001_noid3.mp3\u0022\u003E\n\u002B      \u003CCopyToOutputDirectory\u003ENever\u003C/CopyToOutputDirectory\u003E\n\u002B    \u003C/EmbeddedResource\u003E\n     \u003CEmbeddedResource Include=\u0022..\\..\\Shared\\ImageDataUri\\dotnet.png\u0022 Link=\u0022Resources\\dotnet.png\u0022 /\u003E\n   \u003C/ItemGroup\u003E\n \n"
+            }
+          ]
+        },
+        {
+          "Path": "test/Libraries/Microsoft.Extensions.AI.Integration.Tests/SpeechToTextClientIntegrationTests.cs",
+          "OldPath": "test/Libraries/Microsoft.Extensions.AI.Integration.Tests/SpeechToTextClientIntegrationTests.cs",
+          "ChangeType": "Modified",
+          "Hunks": [
+            {
+              "OldStart": 59,
+              "OldLines": 6,
+              "NewStart": 59,
+              "NewLines": 23,
+              "Content": "         Assert.Contains(\u0022gym\u0022, responseText, StringComparison.OrdinalIgnoreCase);\n     }\n \n\u002B    [ConditionalTheory]\n\u002B    [InlineData(\u0022audio001.mp3\u0022)]\n\u002B    [InlineData(\u0022audio001_noid3.mp3\u0022)]\n\u002B    [InlineData(\u0022audio001.wav\u0022)]\n\u002B    [InlineData(\u0022audio001.m4a\u0022)]\n\u002B    [InlineData(\u0022audio001.webm\u0022)]\n\u002B    public virtual async Task GetTextAsync_AutoDetectsAudioFormat(string fileName)\n\u002B    {\n\u002B        SkipIfNotEnabled();\n\u002B\n\u002B        using var audioSpeechStream = GetAudioStream(fileName);\n\u002B        var response = await _client.GetTextAsync(audioSpeechStream);\n\u002B\n\u002B        Assert.NotNull(response);\n\u002B        Assert.Contains(\u0022gym\u0022, response.Text, StringComparison.OrdinalIgnoreCase);\n\u002B    }\n\u002B\n     private static Stream GetAudioStream(string fileName)\n     {\n         using Stream? s = typeof(SpeechToTextClientIntegrationTests).Assembly.GetManifestResourceStream($\u0022Microsoft.Extensions.AI.Resources.{fileName}\u0022);\n"
+            }
+          ]
+        },
+        {
+          "Path": "test/Libraries/Microsoft.Extensions.AI.Integration.Tests/VerbatimMultiPartHttpHandler.cs",
+          "OldPath": "test/Libraries/Microsoft.Extensions.AI.Integration.Tests/VerbatimMultiPartHttpHandler.cs",
+          "ChangeType": "Modified",
+          "Hunks": [
+            {
+              "OldStart": 41,
+              "OldLines": 6,
+              "NewStart": 41,
+              "NewLines": 8,
+              "Content": " {\n     public string? ExpectedRequestUriContains { get; init; }\n \n\u002B    public string? ExpectedAudioFilename { get; init; }\n\u002B\n     protected override async Task\u003CHttpResponseMessage\u003E SendAsync(\n         HttpRequestMessage request,\n         CancellationToken cancellationToken)\n"
+            },
+            {
+              "OldStart": 111,
+              "OldLines": 8,
+              "NewStart": 113,
+              "NewLines": 16,
+              "Content": "                 // Text field\n                 string name = ExtractNameFromHeaders(headers);\n \n-                // Skip file fields\n-                if (!name.StartsWith(\u0022file\u0022))\n\u002B                // For file fields, optionally check the filename\n\u002B                if (name.StartsWith(\u0022file\u0022))\n\u002B                {\n\u002B                    if (ExpectedAudioFilename is not null)\n\u002B                    {\n\u002B                        string? actualFilename = ExtractFilenameFromHeaders(headers);\n\u002B                        Assert.Equal(ExpectedAudioFilename, actualFilename);\n\u002B                    }\n\u002B                }\n\u002B                else\n                 {\n                     if (parameters.ContainsKey(name))\n                     {\n"
+            },
+            {
+              "OldStart": 185,
+              "OldLines": 6,
+              "NewStart": 195,
+              "NewLines": 25,
+              "Content": "         return headers.Substring(start, end - start).Trim(\u0027\u0022\u0027);\n     }\n \n\u002B    private static string? ExtractFilenameFromHeaders(string headers)\n\u002B    {\n\u002B        const string FilenamePrefix = \u0022filename=\u0022;\n\u002B        int start = headers.IndexOf(FilenamePrefix);\n\u002B        if (start \u003C 0)\n\u002B        {\n\u002B            return null;\n\u002B        }\n\u002B\n\u002B        start \u002B= FilenamePrefix.Length;\n\u002B        int end = headers.IndexOf(\u0022;\u0022, start);\n\u002B        if (end == -1)\n\u002B        {\n\u002B            end = headers.Length;\n\u002B        }\n\u002B\n\u002B        return headers.Substring(start, end - start).Trim(\u0027\u0022\u0027);\n\u002B    }\n\u002B\n     public static string? RemoveWhiteSpace(string? text) =\u003E\n         text is null ? null :\n         Regex.Replace(text, @\u0022\\s*\u0022, string.Empty);\n"
+            }
+          ]
+        },
+        {
+          "Path": "test/Libraries/Microsoft.Extensions.AI.OpenAI.Tests/OpenAISpeechToTextClientTests.cs",
+          "OldPath": "test/Libraries/Microsoft.Extensions.AI.OpenAI.Tests/OpenAISpeechToTextClientTests.cs",
+          "ChangeType": "Modified",
+          "Hunks": [
+            {
+              "OldStart": 352,
+              "OldLines": 4,
+              "NewStart": 352,
+              "NewLines": 153,
+              "Content": "         new OpenAIClient(new ApiKeyCredential(\u0022apikey\u0022), new OpenAIClientOptions { Transport = new HttpClientPipelineTransport(httpClient) })\n             .GetAudioClient(modelId)\n             .AsISpeechToTextClient();\n\u002B\n\u002B    public static TheoryData\u003Cbyte[], string\u003E AudioFormatDetectionData =\u003E new()\n\u002B    {\n\u002B        // WAV: RIFF____WAVE\n\u002B        { \u0022RIFF\\x00\\x00\\x00\\x00WAVE\u0022u8.ToArray(), \u0022audio.wav\u0022 },\n\u002B\n\u002B        // MP3: ID3v2 tag\n\u002B        { new byte[] { (byte)\u0027I\u0027, (byte)\u0027D\u0027, (byte)\u00273\u0027, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }, \u0022audio.mp3\u0022 },\n\u002B\n\u002B        // MP3: MPEG sync word (0xFF 0xFB)\n\u002B        { new byte[] { 0xFF, 0xFB, 0x90, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }, \u0022audio.mp3\u0022 },\n\u002B\n\u002B        // WebM/Matroska: EBML header\n\u002B        { new byte[] { 0x1A, 0x45, 0xDF, 0xA3, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }, \u0022audio.webm\u0022 },\n\u002B\n\u002B        // M4A/MP4: ISO BMFF ftyp box\n\u002B        { new byte[] { 0x00, 0x00, 0x00, 0x20, (byte)\u0027f\u0027, (byte)\u0027t\u0027, (byte)\u0027y\u0027, (byte)\u0027p\u0027, (byte)\u0027M\u0027, (byte)\u00274\u0027, (byte)\u0027A\u0027, (byte)\u0027 \u0027 }, \u0022audio.m4a\u0022 },\n\u002B\n\u002B        // Unknown bytes: defaults to mp3\n\u002B        { new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C }, \u0022audio.mp3\u0022 },\n\u002B    };\n\u002B\n\u002B    [Theory]\n\u002B    [MemberData(nameof(AudioFormatDetectionData))]\n\u002B    public async Task GetTextAsync_DetectsAudioFormatFromMagicBytes(byte[] header, string expectedFilename)\n\u002B    {\n\u002B        const string Input = \u0022\u0022\u0022\n\u002B                {\n\u002B                    \u0022model\u0022: \u0022gpt-4o-transcribe\u0022\n\u002B                }\n\u002B                \u0022\u0022\u0022;\n\u002B\n\u002B        const string Output = \u0022\u0022\u0022\n\u002B                {\n\u002B                    \u0022text\u0022:\u0022Hello.\u0022\n\u002B                }\n\u002B                \u0022\u0022\u0022;\n\u002B\n\u002B        using var audioSpeechStream = new MemoryStream(header);\n\u002B\n\u002B        using VerbatimMultiPartHttpHandler handler = new(Input, Output)\n\u002B        {\n\u002B            ExpectedAudioFilename = expectedFilename,\n\u002B        };\n\u002B        using HttpClient httpClient = new(handler);\n\u002B        using ISpeechToTextClient client = CreateSpeechToTextClient(httpClient, \u0022gpt-4o-transcribe\u0022);\n\u002B\n\u002B        var response = await client.GetTextAsync(audioSpeechStream);\n\u002B        Assert.NotNull(response);\n\u002B    }\n\u002B\n\u002B    [Theory]\n\u002B    [MemberData(nameof(AudioFormatDetectionData))]\n\u002B    public async Task GetStreamingTextAsync_DetectsAudioFormatFromMagicBytes(byte[] header, string expectedFilename)\n\u002B    {\n\u002B        const string Input = \u0022\u0022\u0022\n\u002B                {\n\u002B                    \u0022model\u0022: \u0022gpt-4o-transcribe\u0022,\n\u002B                    \u0022stream\u0022:true\n\u002B                }\n\u002B                \u0022\u0022\u0022;\n\u002B\n\u002B        const string Output = \u0022\u0022\u0022\n\u002B                {\n\u002B                    \u0022text\u0022:\u0022Hello.\u0022\n\u002B                }\n\u002B                \u0022\u0022\u0022;\n\u002B\n\u002B        using var audioSpeechStream = new MemoryStream(header);\n\u002B\n\u002B        using VerbatimMultiPartHttpHandler handler = new(Input, Output)\n\u002B        {\n\u002B            ExpectedRequestUriContains = \u0022audio/transcriptions\u0022,\n\u002B            ExpectedAudioFilename = expectedFilename,\n\u002B        };\n\u002B        using HttpClient httpClient = new(handler);\n\u002B        using ISpeechToTextClient client = CreateSpeechToTextClient(httpClient, \u0022gpt-4o-transcribe\u0022);\n\u002B\n\u002B        await foreach (var update in client.GetStreamingTextAsync(audioSpeechStream))\n\u002B        {\n\u002B            Assert.NotNull(update);\n\u002B        }\n\u002B    }\n\u002B\n\u002B    [Fact]\n\u002B    public async Task GetTextAsync_StreamPositionNotAtZero_SkipsDetectionAndDefaultsToMp3()\n\u002B    {\n\u002B        const string Input = \u0022\u0022\u0022\n\u002B                {\n\u002B                    \u0022model\u0022: \u0022gpt-4o-transcribe\u0022\n\u002B                }\n\u002B                \u0022\u0022\u0022;\n\u002B\n\u002B        const string Output = \u0022\u0022\u0022\n\u002B                {\n\u002B                    \u0022text\u0022:\u0022Hello.\u0022\n\u002B                }\n\u002B                \u0022\u0022\u0022;\n\u002B\n\u002B        // WAV magic bytes, but position advanced past them \u2014 detection should be skipped.\n\u002B        byte[] wavHeader = \u0022RIFF\\x00\\x00\\x00\\x00WAVE\u0022u8.ToArray();\n\u002B        using var audioSpeechStream = new MemoryStream(wavHeader);\n\u002B        audioSpeechStream.Position = 4;\n\u002B\n\u002B        using VerbatimMultiPartHttpHandler handler = new(Input, Output)\n\u002B        {\n\u002B            ExpectedAudioFilename = \u0022audio.mp3\u0022,\n\u002B        };\n\u002B        using HttpClient httpClient = new(handler);\n\u002B        using ISpeechToTextClient client = CreateSpeechToTextClient(httpClient, \u0022gpt-4o-transcribe\u0022);\n\u002B\n\u002B        var response = await client.GetTextAsync(audioSpeechStream);\n\u002B        Assert.NotNull(response);\n\u002B    }\n\u002B\n\u002B    [Fact]\n\u002B    public async Task GetStreamingTextAsync_StreamPositionNotAtZero_SkipsDetectionAndDefaultsToMp3()\n\u002B    {\n\u002B        const string Input = \u0022\u0022\u0022\n\u002B                {\n\u002B                    \u0022model\u0022: \u0022gpt-4o-transcribe\u0022,\n\u002B                    \u0022stream\u0022:true\n\u002B                }\n\u002B                \u0022\u0022\u0022;\n\u002B\n\u002B        const string Output = \u0022\u0022\u0022\n\u002B                {\n\u002B                    \u0022text\u0022:\u0022Hello.\u0022\n\u002B                }\n\u002B                \u0022\u0022\u0022;\n\u002B\n\u002B        // WAV magic bytes, but position advanced past them \u2014 detection should be skipped.\n\u002B        byte[] wavHeader = \u0022RIFF\\x00\\x00\\x00\\x00WAVE\u0022u8.ToArray();\n\u002B        using var audioSpeechStream = new MemoryStream(wavHeader);\n\u002B        audioSpeechStream.Position = 4;\n\u002B\n\u002B        using VerbatimMultiPartHttpHandler handler = new(Input, Output)\n\u002B        {\n\u002B            ExpectedRequestUriContains = \u0022audio/transcriptions\u0022,\n\u002B            ExpectedAudioFilename = \u0022audio.mp3\u0022,\n\u002B        };\n\u002B        using HttpClient httpClient = new(handler);\n\u002B        using ISpeechToTextClient client = CreateSpeechToTextClient(httpClient, \u0022gpt-4o-transcribe\u0022);\n\u002B\n\u002B        await foreach (var update in client.GetStreamingTextAsync(audioSpeechStream))\n\u002B        {\n\u002B            Assert.NotNull(update);\n\u002B        }\n\u002B    }\n }\n"
+            }
+          ]
+        }
+      ]
+    },
+    "DependencyGraph": {
+      "FileDependencies": {
+        "OpenAISpeechToTextClient.cs": [
+          "System",
+          "OpenAI",
+          "Audio",
+          "Collections",
+          "Generic",
+          "Diagnostics",
+          "CodeAnalysis",
+          "IO",
+          "Runtime",
+          "CompilerServices",
+          "Threading",
+          "Tasks",
+          "Microsoft",
+          "Shared",
+          "DiagnosticIds",
+          "Extensions",
+          "AI",
+          "Experimental",
+          "Experiments",
+          "AISpeechToText",
+          "UrlFormat",
+          "ISpeechToTextClient",
+          "SpeechToTextClientMetadata",
+          "AudioClient",
+          "Throw",
+          "IfNull",
+          "Endpoint",
+          "Model",
+          "Type",
+          "IsInstanceOfType",
+          "SpeechToTextResponse",
+          "Stream",
+          "SpeechToTextOptions",
+          "CancellationToken",
+          "ResolveFilename",
+          "IsTranslationRequest",
+          "TranslateAudioAsync",
+          "ToOpenAITranslationOptions",
+          "ConfigureAwait",
+          "Value",
+          "Contents",
+          "TextContent",
+          "Text",
+          "RawRepresentation",
+          "Segments",
+          "Count",
+          "StartTime",
+          "EndTime",
+          "TranscribeAudioAsync",
+          "ToOpenAITranscriptionOptions",
+          "Words",
+          "Usage",
+          "AudioTranscriptionTokenUsage",
+          "ToUsageDetails",
+          "SpeechToTextResponseUpdate",
+          "EnumeratorCancellation",
+          "GetTextAsync",
+          "ToSpeechToTextResponseUpdates",
+          "TranscribeAudioStreamingAsync",
+          "ModelId",
+          "StreamingAudioTranscriptionTextDeltaUpdate",
+          "Kind",
+          "SpeechToTextResponseUpdateKind",
+          "TextUpdated",
+          "Delta",
+          "StreamingAudioTranscriptionTextSegmentUpdate",
+          "StreamingAudioTranscriptionTextDoneUpdate",
+          "SessionClose",
+          "UsageContent",
+          "IDisposable",
+          "TextLanguage",
+          "SpeechLanguage",
+          "FileStream",
+          "Path",
+          "GetFileName",
+          "Name",
+          "CanSeek",
+          "Position",
+          "FormatDetectionByteCount",
+          "Length",
+          "Read",
+          "DetectAudioExtension",
+          "AsSpan",
+          "Slice",
+          "SequenceEqual",
+          "AudioTranscriptionOptions",
+          "RawRepresentationFactory",
+          "Invoke",
+          "Language",
+          "AudioTranslationOptions",
+          "UsageDetails",
+          "InputTokenCount",
+          "OutputTokenCount",
+          "TotalTokenCount",
+          "InputTokenDetails",
+          "InputAudioTokenCount",
+          "AudioTokenCount",
+          "InputTextTokenCount",
+          "TextTokenCount"
+        ],
+        "SpeechToTextClientIntegrationTests.cs": [
+          "System",
+          "Xunit",
+          "Diagnostics",
+          "CodeAnalysis",
+          "IO",
+          "Text",
+          "Threading",
+          "Tasks",
+          "Microsoft",
+          "TestUtilities",
+          "Extensions",
+          "AI",
+          "IDisposable",
+          "ISpeechToTextClient",
+          "CreateClient",
+          "Dispose",
+          "GC",
+          "SuppressFinalize",
+          "ConditionalFact",
+          "Task",
+          "SkipIfNotEnabled",
+          "GetAudioStream",
+          "GetTextAsync",
+          "Assert",
+          "Contains",
+          "StringComparison",
+          "OrdinalIgnoreCase",
+          "StringBuilder",
+          "GetStreamingTextAsync",
+          "Append",
+          "ToString",
+          "ConditionalTheory",
+          "InlineData",
+          "NotNull",
+          "Stream",
+          "Assembly",
+          "GetManifestResourceStream",
+          "MemoryStream",
+          "CopyTo",
+          "Position",
+          "MemberNotNull",
+          "TestRunnerConfiguration",
+          "Instance",
+          "SkipTestException"
+        ],
+        "VerbatimMultiPartHttpHandler.cs": [
+          "System",
+          "Xunit",
+          "Collections",
+          "Generic",
+          "IO",
+          "Linq",
+          "Net",
+          "Http",
+          "Text",
+          "Json",
+          "RegularExpressions",
+          "Threading",
+          "Tasks",
+          "HttpClientHandler",
+          "HttpResponseMessage",
+          "HttpRequestMessage",
+          "CancellationToken",
+          "Assert",
+          "NotNull",
+          "Content",
+          "Headers",
+          "ContentType",
+          "Equal",
+          "MediaType",
+          "RequestUri",
+          "IsNullOrEmpty",
+          "ExpectedRequestUriContains",
+          "Contains",
+          "ToString",
+          "Parameters",
+          "FirstOrDefault",
+          "Name",
+          "Value",
+          "InvalidOperationException",
+          "Trim",
+          "ReadAsByteArrayAsync",
+          "MemoryStream",
+          "StreamReader",
+          "Encoding",
+          "UTF8",
+          "ReadToEndAsync",
+          "RemoveSpecialCharacters",
+          "Split",
+          "StringSplitOptions",
+          "None",
+          "IndexOf",
+          "Substring",
+          "TrimEnd",
+          "ExtractNameFromHeaders",
+          "StartsWith",
+          "ExpectedAudioFilename",
+          "ExtractFilenameFromHeaders",
+          "ContainsKey",
+          "JsonElement",
+          "Add",
+          "ParseContentToJsonElement",
+          "Keys",
+          "ToList",
+          "Count",
+          "JsonSerializer",
+          "Serialize",
+          "AssertJsonEquals",
+          "StringContent",
+          "Regex",
+          "Replace",
+          "TryParse",
+          "SerializeToElement",
+          "NamePrefix",
+          "Length",
+          "FilenamePrefix",
+          "Empty",
+          "RemoveWhiteSpace",
+          "GroupBy",
+          "ToDictionary",
+          "Key",
+          "GetCharacterFrequencies",
+          "Fail"
+        ],
+        "OpenAISpeechToTextClientTests.cs": [
+          "System",
+          "OpenAI",
+          "Audio",
+          "Xunit",
+          "ClientModel",
+          "Primitives",
+          "IO",
+          "Linq",
+          "Net",
+          "Http",
+          "Threading",
+          "Tasks",
+          "Microsoft",
+          "Extensions",
+          "Logging",
+          "AI",
+          "Fact",
+          "Assert",
+          "ArgumentNullException",
+          "AudioClient",
+          "AsISpeechToTextClient",
+          "Uri",
+          "OpenAIClient",
+          "ApiKeyCredential",
+          "OpenAIClientOptions",
+          "Endpoint",
+          "ISpeechToTextClient",
+          "GetAudioClient",
+          "SpeechToTextClientMetadata",
+          "Equal",
+          "ProviderName",
+          "ProviderUri",
+          "DefaultModelId",
+          "Same",
+          "LoggerFactory",
+          "Create",
+          "AddFakeLogging",
+          "AsBuilder",
+          "UseLogging",
+          "Build",
+          "NotNull",
+          "LoggingSpeechToTextClient",
+          "Theory",
+          "InlineData",
+          "Task",
+          "VerbatimMultiPartHttpHandler",
+          "Output",
+          "ExpectedRequestUriContains",
+          "HttpClient",
+          "CreateSpeechToTextClient",
+          "GetAudioStream",
+          "GetTextAsync",
+          "SpeechToTextOptions",
+          "SpeechLanguage",
+          "TextLanguage",
+          "Contains",
+          "Text",
+          "RawRepresentation",
+          "AudioTranscription",
+          "CancellationTokenSource",
+          "Cancel",
+          "TaskCanceledException",
+          "Token",
+          "GetStreamingTextAsync",
+          "GetAsyncEnumerator",
+          "MoveNextAsync",
+          "AsTask",
+          "Input",
+          "AudioTranslation",
+          "RawRepresentationFactory",
+          "AudioTranscriptionOptions",
+          "Prompt",
+          "Language",
+          "Temperature",
+          "TimestampGranularities",
+          "AudioTimestampGranularities",
+          "Segment",
+          "Word",
+          "ResponseFormat",
+          "AudioTranscriptionFormat",
+          "Vtt",
+          "AudioTranslationOptions",
+          "AudioTranslationFormat",
+          "Stream",
+          "MemoryStream",
+          "Collections",
+          "Generic",
+          "SpeechToTextResponseUpdate",
+          "Add",
+          "Count",
+          "SpeechToTextResponseUpdateKind",
+          "TextUpdated",
+          "Kind",
+          "StreamingAudioTranscriptionTextDeltaUpdate",
+          "TimeSpan",
+          "Zero",
+          "StartTime",
+          "FromSeconds",
+          "EndTime",
+          "Empty",
+          "StreamingAudioTranscriptionTextSegmentUpdate",
+          "SegmentId",
+          "SpeakerLabel",
+          "SessionClose",
+          "StreamingAudioTranscriptionTextDoneUpdate",
+          "Contents",
+          "UsageContent",
+          "Single",
+          "Details",
+          "InputTokenCount",
+          "OutputTokenCount",
+          "TotalTokenCount",
+          "InputAudioTokenCount",
+          "InputTextTokenCount",
+          "Transport",
+          "HttpClientPipelineTransport",
+          "ToArray",
+          "MemberData",
+          "AudioFormatDetectionData",
+          "ExpectedAudioFilename",
+          "Position"
+        ]
+      },
+      "ReverseDependencies": {
+        "System": [
+          "OpenAISpeechToTextClient.cs",
+          "SpeechToTextClientIntegrationTests.cs",
+          "VerbatimMultiPartHttpHandler.cs",
+          "OpenAISpeechToTextClientTests.cs"
+        ],
+        "OpenAI": [
+          "OpenAISpeechToTextClient.cs",
+          "OpenAISpeechToTextClientTests.cs"
+        ],
+        "Audio": [
+          "OpenAISpeechToTextClient.cs",
+          "OpenAISpeechToTextClientTests.cs"
+        ],
+        "Xunit": [
+          "SpeechToTextClientIntegrationTests.cs",
+          "VerbatimMultiPartHttpHandler.cs",
+          "OpenAISpeechToTextClientTests.cs"
+        ]
+      },
+      "EntryPoints": [
+        "OpenAISpeechToTextClient.cs",
+        "SpeechToTextClientIntegrationTests.cs",
+        "VerbatimMultiPartHttpHandler.cs",
+        "OpenAISpeechToTextClientTests.cs"
+      ]
+    },
+    "Metadata": null,
+    "Issue": null,
+    "EvaluationSummary": null,
+    "CodeAnalysis": {
+      "Complexity": [
+        {
+          "FilePath": "src/Libraries/Microsoft.Extensions.AI.OpenAI/OpenAISpeechToTextClient.cs",
+          "MethodName": "GetTextAsync",
+          "StartLine": 56,
+          "Complexity": 6
+        },
+        {
+          "FilePath": "src/Libraries/Microsoft.Extensions.AI.OpenAI/OpenAISpeechToTextClient.cs",
+          "MethodName": "GetStreamingTextAsync",
+          "StartLine": 112,
+          "Complexity": 8
+        },
+        {
+          "FilePath": "src/Libraries/Microsoft.Extensions.AI.OpenAI/OpenAISpeechToTextClient.cs",
+          "MethodName": "ResolveFilename",
+          "StartLine": 184,
+          "Complexity": 6
+        },
+        {
+          "FilePath": "src/Libraries/Microsoft.Extensions.AI.OpenAI/OpenAISpeechToTextClient.cs",
+          "MethodName": "DetectAudioExtension",
+          "StartLine": 217,
+          "Complexity": 13
+        },
+        {
+          "FilePath": "test/Libraries/Microsoft.Extensions.AI.Integration.Tests/SpeechToTextClientIntegrationTests.cs",
+          "MethodName": "GetTextAsync_AutoDetectsAudioFormat",
+          "StartLine": 62,
+          "Complexity": 1
+        },
+        {
+          "FilePath": "test/Libraries/Microsoft.Extensions.AI.Integration.Tests/VerbatimMultiPartHttpHandler.cs",
+          "MethodName": "SendAsync",
+          "StartLine": 46,
+          "Complexity": 13
+        },
+        {
+          "FilePath": "test/Libraries/Microsoft.Extensions.AI.Integration.Tests/VerbatimMultiPartHttpHandler.cs",
+          "MethodName": "ExtractFilenameFromHeaders",
+          "StartLine": 198,
+          "Complexity": 3
+        },
+        {
+          "FilePath": "test/Libraries/Microsoft.Extensions.AI.OpenAI.Tests/OpenAISpeechToTextClientTests.cs",
+          "MethodName": "GetTextAsync_DetectsAudioFormatFromMagicBytes",
+          "StartLine": 377,
+          "Complexity": 1
+        },
+        {
+          "FilePath": "test/Libraries/Microsoft.Extensions.AI.OpenAI.Tests/OpenAISpeechToTextClientTests.cs",
+          "MethodName": "GetStreamingTextAsync_DetectsAudioFormatFromMagicBytes",
+          "StartLine": 406,
+          "Complexity": 2
+        },
+        {
+          "FilePath": "test/Libraries/Microsoft.Extensions.AI.OpenAI.Tests/OpenAISpeechToTextClientTests.cs",
+          "MethodName": "GetTextAsync_StreamPositionNotAtZero_SkipsDetectionAndDefaultsToMp3",
+          "StartLine": 439,
+          "Complexity": 1
+        },
+        {
+          "FilePath": "test/Libraries/Microsoft.Extensions.AI.OpenAI.Tests/OpenAISpeechToTextClientTests.cs",
+          "MethodName": "GetStreamingTextAsync_StreamPositionNotAtZero_SkipsDetectionAndDefaultsToMp3",
+          "StartLine": 470,
+          "Complexity": 2
+        }
+      ],
+      "CallSites": [
+        {
+          "FilePath": "src/Libraries/Microsoft.Extensions.AI.OpenAI/OpenAISpeechToTextClient.cs",
+          "MethodName": "GetTextAsync",
+          "StartLine": 56,
+          "Callers": [
+            {
+              "FilePath": "src/Libraries/Microsoft.Extensions.AI.OpenAI/OpenAISpeechToTextClient.cs",
+              "Line": 121,
+              "MethodName": "GetTextAsync",
+              "CallingMethod": "GetStreamingTextAsync"
+            }
+          ]
+        },
+        {
+          "FilePath": "src/Libraries/Microsoft.Extensions.AI.OpenAI/OpenAISpeechToTextClient.cs",
+          "MethodName": "ResolveFilename",
+          "StartLine": 184,
+          "Callers": [
+            {
+              "FilePath": "src/Libraries/Microsoft.Extensions.AI.OpenAI/OpenAISpeechToTextClient.cs",
+              "Line": 63,
+              "MethodName": "ResolveFilename",
+              "CallingMethod": "GetTextAsync"
+            },
+            {
+              "FilePath": "src/Libraries/Microsoft.Extensions.AI.OpenAI/OpenAISpeechToTextClient.cs",
+              "Line": 117,
+              "MethodName": "ResolveFilename",
+              "CallingMethod": "GetStreamingTextAsync"
+            }
+          ]
+        },
+        {
+          "FilePath": "src/Libraries/Microsoft.Extensions.AI.OpenAI/OpenAISpeechToTextClient.cs",
+          "MethodName": "DetectAudioExtension",
+          "StartLine": 217,
+          "Callers": [
+            {
+              "FilePath": "src/Libraries/Microsoft.Extensions.AI.OpenAI/OpenAISpeechToTextClient.cs",
+              "Line": 210,
+              "MethodName": "DetectAudioExtension",
+              "CallingMethod": "ResolveFilename"
+            }
+          ]
+        },
+        {
+          "FilePath": "test/Libraries/Microsoft.Extensions.AI.Integration.Tests/VerbatimMultiPartHttpHandler.cs",
+          "MethodName": "ExtractFilenameFromHeaders",
+          "StartLine": 198,
+          "Callers": [
+            {
+              "FilePath": "test/Libraries/Microsoft.Extensions.AI.Integration.Tests/VerbatimMultiPartHttpHandler.cs",
+              "Line": 121,
+              "MethodName": "ExtractFilenameFromHeaders",
+              "CallingMethod": "SendAsync"
+            }
+          ]
+        }
+      ],
+      "CodeSmells": [
+        {
+          "Type": "LongMethod",
+          "Description": "Method \u0027GetTextAsync\u0027 has 54 lines (max recommended: 50)",
+          "FilePath": "src/Libraries/Microsoft.Extensions.AI.OpenAI/OpenAISpeechToTextClient.cs",
+          "Line": 56,
+          "Severity": "Medium"
+        },
+        {
+          "Type": "LongMethod",
+          "Description": "Method \u0027GetStreamingTextAsync\u0027 has 55 lines (max recommended: 50)",
+          "FilePath": "src/Libraries/Microsoft.Extensions.AI.OpenAI/OpenAISpeechToTextClient.cs",
+          "Line": 112,
+          "Severity": "Medium"
+        },
+        {
+          "Type": "DuplicatedCode",
+          "Description": "Methods \u0027GetTextAsync_SingleAudioRequestMessage\u0027 and \u0027GetTextAsync_AutoDetectsAudioFormat\u0027 have 81% similarity",
+          "FilePath": "test/Libraries/Microsoft.Extensions.AI.Integration.Tests/SpeechToTextClientIntegrationTests.cs",
+          "Line": 33,
+          "Severity": "High"
+        },
+        {
+          "Type": "LongMethod",
+          "Description": "Method \u0027SendAsync\u0027 has 109 lines (max recommended: 50)",
+          "FilePath": "test/Libraries/Microsoft.Extensions.AI.Integration.Tests/VerbatimMultiPartHttpHandler.cs",
+          "Line": 46,
+          "Severity": "Medium"
+        },
+        {
+          "Type": "DuplicatedCode",
+          "Description": "Methods \u0027GetTextAsync_StreamPositionNotAtZero_SkipsDetectionAndDefaultsToMp3\u0027 and \u0027GetStreamingTextAsync_StreamPositionNotAtZero_SkipsDetectionAndDefaultsToMp3\u0027 have 83% similarity",
+          "FilePath": "test/Libraries/Microsoft.Extensions.AI.OpenAI.Tests/OpenAISpeechToTextClientTests.cs",
+          "Line": 439,
+          "Severity": "High"
+        }
+      ],
+      "Notes": []
+    },
+    "Warnings": null,
+    "TokenUsage": null
+  },
+  "Result": {
+    "Findings": [
+      {
+        "Severity": "Critical",
+        "Category": "ResourceLeak",
+        "File": "test/Libraries/Microsoft.Extensions.AI.Integration.Tests/SpeechToTextClientIntegrationTests.cs",
+        "Line": 81,
+        "Description": "GetAudioStream uses a \u0027using\u0027 statement to create the stream and then returns it, causing the returned Stream to be disposed before the caller can read from it.",
+        "Recommendation": "Remove the \u0027using\u0027 statement and return the stream directly, ensuring the caller disposes it.",
+        "CodeSnippet": "using Stream? s = typeof(SpeechToTextClientIntegrationTests).Assembly.GetManifestResourceStream($\u0022Microsoft.Extensions.AI.Resources.{fileName}\u0022);",
+        "FixExample": null,
+        "Confidence": 0.98,
+        "QuickFix": "Remove the using block and return the stream directly on line 81.",
+        "Summary": null,
+        "Metrics": null,
+        "Impact": null,
+        "ModernizationContext": null,
+        "References": null,
+        "Agents": [
+          "LogicAgent"
+        ],
+        "Evaluation": null,
+        "Grounded": null
+      },
+      {
+        "Severity": "High",
+        "Category": "InputValidation",
+        "File": "src/Libraries/Microsoft.Extensions.AI.OpenAI/OpenAISpeechToTextClient.cs",
+        "Line": 63,
+        "Description": "[SecurityAgent]: Filename derived from untrusted audio stream is inserted directly into the multipart Content-Disposition header without validation, enabling HTTP header injection or request smuggling attacks.\n\n[PerformanceAgent]: The audio stream is read twice: ResolveFilename is called in GetTextAsync (line\u202F63) and again in GetStreamingTextAsync (line\u202F117), causing the same stream to be scanned two times which adds unnecessary I/O latency (\u2248\u202F100\u202Fms per request for typical audio sizes).\n\n[LogicAgent]: ResolveFilename is called with \u0027audioSpeechStream\u0027 without checking for null, which can cause ArgumentNullException inside ResolveFilename.",
+        "Recommendation": "Validate and sanitize the filename to allow only safe characters before adding it to the multipart request.\nCache the result of ResolveFilename (or the detected filename/extension) after the first call and reuse it for subsequent operations within the same request.\nValidate that \u0027audioSpeechStream\u0027 is not null before calling ResolveFilename and throw ArgumentNullException if it is.",
+        "CodeSnippet": "string filename = ResolveFilename(audioSpeechStream);",
+        "FixExample": null,
+        "Confidence": 1,
+        "QuickFix": "Sanitize the filename before using it in the multipart request on line 63.",
+        "Summary": null,
+        "Metrics": null,
+        "Impact": null,
+        "ModernizationContext": null,
+        "References": null,
+        "Agents": [
+          "SecurityAgent",
+          "PerformanceAgent",
+          "LogicAgent"
+        ],
+        "Evaluation": null,
+        "Grounded": null
+      },
+      {
+        "Severity": "High",
+        "Category": "Complexity",
+        "File": "src/Libraries/Microsoft.Extensions.AI.OpenAI/OpenAISpeechToTextClient.cs",
+        "Line": 0,
+        "Description": "Method DetectAudioExtension has cyclomatic complexity of 13, exceeding the target of \u003C10, making it hard to understand and maintain.",
+        "Recommendation": "Refactor DetectAudioExtension by extracting each format\u2011detection branch into separate private methods or using a dictionary of signatures.",
+        "CodeSnippet": "private static string DetectAudioExtension(Stream audioStream) { /* complex switch logic */ }",
+        "FixExample": null,
+        "Confidence": 0.9,
+        "QuickFix": "Extract format\u2011detection branches into separate methods to reduce complexity on line 217.",
+        "Summary": null,
+        "Metrics": null,
+        "Impact": null,
+        "ModernizationContext": null,
+        "References": null,
+        "Agents": [
+          "LogicAgent",
+          "PerformanceAgent"
+        ],
+        "Evaluation": null,
+        "Grounded": null
+      },
+      {
+        "Severity": "High",
+        "Category": "Complexity",
+        "File": "test/Libraries/Microsoft.Extensions.AI.Integration.Tests/VerbatimMultiPartHttpHandler.cs",
+        "Line": 46,
+        "Description": "SendAsync method has cyclomatic complexity of 13, largely due to nested conditional logic for handling multipart fields.",
+        "Recommendation": "Break the multipart parsing logic into smaller helper methods (e.g., IsFileField, ValidateFilename, ProcessTextField) to lower complexity.",
+        "CodeSnippet": "protected override async Task\u003CHttpResponseMessage\u003E SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) { /* large method */ }",
+        "FixExample": null,
+        "Confidence": 0.88,
+        "QuickFix": "Extract filename validation and field handling into separate private methods on line 46.",
+        "Summary": null,
+        "Metrics": null,
+        "Impact": null,
+        "ModernizationContext": null,
+        "References": null,
+        "Agents": [
+          "LogicAgent"
+        ],
+        "Evaluation": null,
+        "Grounded": null
+      },
+      {
+        "Severity": "Medium",
+        "Category": "Other",
+        "File": "src/Libraries/Microsoft.Extensions.AI.OpenAI/OpenAISpeechToTextClient.cs",
+        "Line": 0,
+        "Description": "ResolveFilename reads the entire audio stream into a byte buffer to inspect the header, allocating a full\u2011size array for every request; for large audio files this creates significant heap pressure.",
+        "Recommendation": "Read only the minimal number of bytes needed for format detection (e.g., first 12\u202Fbytes) using a small stack\u2011allocated buffer or Span\u003Cbyte\u003E.",
+        "CodeSnippet": "byte[] buffer = new byte[audioStream.Length]; audioStream.Read(buffer, 0, buffer.Length);",
+        "FixExample": null,
+        "Confidence": 0.9,
+        "QuickFix": "Read only the minimal number of bytes needed for format detection (e.g., first 12\u202Fbytes) using a small stack\u2011allocated buffer or Span\u003Cbyte\u003E.",
+        "Summary": null,
+        "Metrics": null,
+        "Impact": null,
+        "ModernizationContext": null,
+        "References": null,
+        "Agents": [
+          "PerformanceAgent"
+        ],
+        "Evaluation": null,
+        "Grounded": null
+      },
+      {
+        "Severity": "Medium",
+        "Category": "CodeSmell",
+        "File": "src/Libraries/Microsoft.Extensions.AI.OpenAI/OpenAISpeechToTextClient.cs",
+        "Line": 24,
+        "Description": "The class is marked as internal sealed but implements a public interface; this may limit extensibility and testability.",
+        "Recommendation": "Consider making the class public or providing a factory for testing, and avoid sealing unless necessary.",
+        "CodeSnippet": "internal sealed class OpenAISpeechToTextClient : ISpeechToTextClient",
+        "FixExample": null,
+        "Confidence": 0.75,
+        "QuickFix": "Consider making the class public or providing a factory for testing, and avoid sealing unless necessary.",
+        "Summary": null,
+        "Metrics": null,
+        "Impact": null,
+        "ModernizationContext": null,
+        "References": null,
+        "Agents": [
+          "LogicAgent"
+        ],
+        "Evaluation": null,
+        "Grounded": null
+      },
+      {
+        "Severity": "Low",
+        "Category": "Naming",
+        "File": "test/Libraries/Microsoft.Extensions.AI.Integration.Tests/VerbatimMultiPartHttpHandler.cs",
+        "Line": 44,
+        "Description": "Property name \u0027ExpectedAudioFilename\u0027 could be more descriptive, e.g., \u0027ExpectedMultipartFileName\u0027.",
+        "Recommendation": "Rename property to better reflect its purpose.",
+        "CodeSnippet": "public string? ExpectedAudioFilename { get; init; }",
+        "FixExample": null,
+        "Confidence": 0.6,
+        "QuickFix": "Rename property to better reflect its purpose.",
+        "Summary": null,
+        "Metrics": null,
+        "Impact": null,
+        "ModernizationContext": null,
+        "References": null,
+        "Agents": [
+          "LogicAgent"
+        ],
+        "Evaluation": null,
+        "Grounded": null
+      }
+    ],
+    "Summary": "Reviewed 5 files. Found 7 findings across 3 files: 1 critical, 3 high, 2 medium, 1 low. 3 finding(s) could not be matched to a specific line. 1 near-duplicate finding(s) without a line number were merged. 1 finding(s) were reported by more than one agent."
+  },
+  "Warnings": [],
+  "GenerationTokens": {
+    "Calls": 4,
+    "PromptTokens": 9957,
+    "CompletionTokens": 4273,
+    "ByModel": {
+      "openai/gpt-oss-20b": {
+        "Calls": 1,
+        "PromptTokens": 672,
+        "CompletionTokens": 325
+      },
+      "openai/gpt-oss-120b": {
+        "Calls": 3,
+        "PromptTokens": 9285,
+        "CompletionTokens": 3948
+      }
+    },
+    "Total": 14230
+  }
+}

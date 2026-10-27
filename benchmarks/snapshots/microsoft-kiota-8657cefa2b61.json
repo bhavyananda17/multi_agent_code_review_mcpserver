@@ -1,0 +1,525 @@
+{
+  "Context": {
+    "RepositoryPath": "/var/folders/cx/j17y0q8103118l_jghqvtnb40000gn/T/9e139730-ff6e-4bb9-9451-594fc9f2dfea",
+    "CommitHash": "8657cefa2b61f2eca451bd11f2a527c6cb69e081",
+    "BaseCommit": null,
+    "ChangedFiles": [
+      {
+        "Path": "src/Kiota.Builder/Writers/TypeScript/TypeScriptConventionService.cs",
+        "Additions": 29,
+        "Deletions": 9,
+        "ChangeType": "Modified"
+      },
+      {
+        "Path": "tests/Kiota.Builder.Tests/Writers/TypeScript/TypeScriptConventionServiceTests.cs",
+        "Additions": 111,
+        "Deletions": 0,
+        "ChangeType": "Modified"
+      }
+    ],
+    "Diff": {
+      "Summary": "3 files changed",
+      "Files": [
+        {
+          "Path": "src/Kiota.Builder/Writers/TypeScript/TypeScriptConventionService.cs",
+          "OldPath": "src/Kiota.Builder/Writers/TypeScript/TypeScriptConventionService.cs",
+          "ChangeType": "Modified",
+          "Hunks": [
+            {
+              "OldStart": 2,
+              "OldLines": 6,
+              "NewStart": 2,
+              "NewLines": 7,
+              "Content": " using System.Collections.Generic;\n using System.Globalization;\n using System.Linq;\n\u002Busing System.Runtime.CompilerServices;\n \n using Kiota.Builder.CodeDOM;\n using Kiota.Builder.Extensions;\n"
+            },
+            {
+              "OldStart": 181,
+              "OldLines": 21,
+              "NewStart": 182,
+              "NewLines": 40,
+              "Content": "         return collectionSuffix.Length \u003E 0 ? $\u0022({returnTypeString}){collectionSuffix}\u0022 : returnTypeString;\n     }\n \n\u002B    /// \u003Csummary\u003E\n\u002B    /// Caches the usings that are in scope for a block. GetTypeAlias is called for every type reference\n\u002B    /// that gets written, and gathering that set is the expensive part: a CodeFile aggregates the usings\n\u002B    /// of all of its children, so every call walked the whole file and copied a ConcurrentDictionary key\n\u002B    /// set per child. The set of usings a block holds is only ever built by the refiners, so it is safe to\n\u002B    /// gather once per block.\n\u002B    /// Only the set is cached. The alias of a using is assigned in place, after the using itself exists\n\u002B    /// (see AliasCollidingSymbols), so it is read on every lookup rather than captured here.\n\u002B    /// \u003C/summary\u003E\n\u002B    private static readonly ConditionalWeakTable\u003CIBlock, CodeUsing[]\u003E usingsByBlock = new();\n\u002B\n     private static string GetTypeAlias(CodeType targetType, CodeElement targetElement)\n     {\n\u002B        if (targetType.TypeDefinition is null)\n\u002B            return string.Empty;\n         var block = targetElement.GetImmediateParentOfType\u003CIBlock\u003E();\n-        var usings = block is CodeFile cf ? cf.GetChildElements(true).SelectMany(GetUsingsFromCodeElement) : block?.Usings ?? Array.Empty\u003CCodeUsing\u003E();\n-        return GetTypeAlias(targetType, usings);\n\u002B        if (block is null)\n\u002B            return string.Empty;\n\u002B        var usings = usingsByBlock.GetValue(block, static b =\u003E GatherUsings(b));\n\u002B        foreach (var codeUsing in usings)\n\u002B        {\n\u002B            if (!codeUsing.IsExternal \u0026\u0026\n\u002B                codeUsing.Declaration?.TypeDefinition is not null \u0026\u0026\n\u002B                codeUsing.Declaration.TypeDefinition == targetType.TypeDefinition \u0026\u0026\n\u002B                !string.IsNullOrEmpty(codeUsing.Alias))\n\u002B                return codeUsing.Alias;\n\u002B        }\n\u002B        return string.Empty;\n     }\n \n-    private static string GetTypeAlias(CodeType targetType, IEnumerable\u003CCodeUsing\u003E usings)\n\u002B    private static CodeUsing[] GatherUsings(IBlock block)\n     {\n-        var aliasedUsing = usings.FirstOrDefault(x =\u003E !x.IsExternal \u0026\u0026\n-                                                      x.Declaration?.TypeDefinition != null \u0026\u0026\n-                                                      x.Declaration.TypeDefinition == targetType.TypeDefinition \u0026\u0026\n-                                                      !string.IsNullOrEmpty(x.Alias));\n-\n-        return aliasedUsing != null ? aliasedUsing.Alias : string.Empty;\n\u002B        var usings = block is CodeFile cf ? cf.GetChildElements(true).SelectMany(GetUsingsFromCodeElement) : block.Usings ?? Array.Empty\u003CCodeUsing\u003E();\n\u002B        return usings.ToArray();\n     }\n \n     public override string TranslateType(CodeType type)\n"
+            }
+          ]
+        },
+        {
+          "Path": "tests/Kiota.Builder.Tests/Writers/TypeScript/TypeScriptConventionServiceTests.cs",
+          "OldPath": "tests/Kiota.Builder.Tests/Writers/TypeScript/TypeScriptConventionServiceTests.cs",
+          "ChangeType": "Modified",
+          "Hunks": [
+            {
+              "OldStart": 151,
+              "OldLines": 6,
+              "NewStart": 151,
+              "NewLines": 117,
+              "Content": "         // Assert - should be camelCase, not PascalCase\n         Assert.Equal(\u0022createPolicyFromDiscriminatorValue\u0022, result);\n     }\n\u002B    /// \u003Csummary\u003E\n\u002B    /// Builds a code file holding a model interface and a constant, with a single using on the\n\u002B    /// interface. A constant is not a block of its own, so the enclosing block of the returned\n\u002B    /// target element is the code file, which is the case where the aliases of every child of the\n\u002B    /// file have to be aggregated.\n\u002B    /// \u003C/summary\u003E\n\u002B    private static (CodeConstant TargetElement, CodeType TargetType) BuildCodeFileWithUsing(string alias, bool isExternal = false, bool aliasAnotherType = false)\n\u002B    {\n\u002B        var root = CodeNamespace.InitRootNamespace();\n\u002B        var modelsNS = root.AddNamespace(\u0022models\u0022);\n\u002B        var modelInterface = new CodeInterface\n\u002B        {\n\u002B            Name = \u0022Policy\u0022,\n\u002B            Kind = CodeInterfaceKind.Model,\n\u002B            OriginalClass = new CodeClass { Name = \u0022Policy\u0022 },\n\u002B        };\n\u002B        var otherInterface = new CodeInterface\n\u002B        {\n\u002B            Name = \u0022OtherPolicy\u0022,\n\u002B            Kind = CodeInterfaceKind.Model,\n\u002B            OriginalClass = new CodeClass { Name = \u0022OtherPolicy\u0022 },\n\u002B        };\n\u002B        var declaredType = aliasAnotherType ? otherInterface : modelInterface;\n\u002B        modelInterface.AddUsing(new CodeUsing\n\u002B        {\n\u002B            Name = declaredType.Name,\n\u002B            Alias = alias,\n\u002B            Declaration = new CodeType { Name = declaredType.Name, TypeDefinition = declaredType, IsExternal = isExternal },\n\u002B        });\n\u002B        var constant = new CodeConstant\n\u002B        {\n\u002B            Name = \u0022policyMapper\u0022,\n\u002B            Kind = CodeConstantKind.QueryParametersMapper,\n\u002B        };\n\u002B        modelsNS.TryAddCodeFile(\u0022policyFile\u0022, modelInterface, constant);\n\u002B        return (constant, new CodeType { Name = \u0022Policy\u0022, TypeDefinition = modelInterface });\n\u002B    }\n\u002B\n\u002B    [Fact]\n\u002B    public void GetTypescriptTypeString_ReturnsAlias_WhenTheEnclosingCodeFileHasAnAliasedUsing()\n\u002B    {\n\u002B        var (targetElement, targetType) = BuildCodeFileWithUsing(\u0022SomeAliasedPolicy\u0022);\n\u002B\n\u002B        var result = TypeScriptConventionService.GetTypescriptTypeString(targetType, targetElement, false);\n\u002B\n\u002B        Assert.Equal(\u0022SomeAliasedPolicy\u0022, result);\n\u002B    }\n\u002B\n\u002B    [Fact]\n\u002B    public void GetTypescriptTypeString_ReturnsTheSameAlias_WhenCalledRepeatedlyForTheSameBlock()\n\u002B    {\n\u002B        var (targetElement, targetType) = BuildCodeFileWithUsing(\u0022SomeAliasedPolicy\u0022);\n\u002B\n\u002B        var first = TypeScriptConventionService.GetTypescriptTypeString(targetType, targetElement, false);\n\u002B        var second = TypeScriptConventionService.GetTypescriptTypeString(targetType, targetElement, false);\n\u002B        var third = TypeScriptConventionService.GetTypescriptTypeString(new CodeType { Name = targetType.Name, TypeDefinition = targetType.TypeDefinition }, targetElement, false);\n\u002B\n\u002B        Assert.Equal(\u0022SomeAliasedPolicy\u0022, first);\n\u002B        Assert.Equal(first, second);\n\u002B        Assert.Equal(first, third);\n\u002B    }\n\u002B\n\u002B    [Fact]\n\u002B    public void GetTypescriptTypeString_PicksUpAnAliasAssignedAfterAnEarlierLookup()\n\u002B    {\n\u002B        // AliasCollidingSymbols assigns Alias in place on a using that already exists, so a lookup that\n\u002B        // ran before the assignment must not make the writers miss the alias afterwards.\n\u002B        var (targetElement, targetType) = BuildCodeFileWithUsing(string.Empty);\n\u002B        var codeUsing = ((CodeFile)targetElement.Parent!).GetChildElements(true)\n\u002B                            .OfType\u003CCodeInterface\u003E()\n\u002B                            .SelectMany(static x =\u003E x.Usings)\n\u002B                            .Single();\n\u002B\n\u002B        var before = TypeScriptConventionService.GetTypescriptTypeString(targetType, targetElement, false);\n\u002B        codeUsing.Alias = \u0022SomeAliasedPolicy\u0022;\n\u002B        var after = TypeScriptConventionService.GetTypescriptTypeString(targetType, targetElement, false);\n\u002B\n\u002B        Assert.Equal(\u0022Policy\u0022, before);\n\u002B        Assert.Equal(\u0022SomeAliasedPolicy\u0022, after);\n\u002B    }\n\u002B\n\u002B    [Fact]\n\u002B    public void GetTypescriptTypeString_IgnoresTheAlias_WhenTheUsingIsExternal()\n\u002B    {\n\u002B        var (targetElement, targetType) = BuildCodeFileWithUsing(\u0022SomeAliasedPolicy\u0022, isExternal: true);\n\u002B\n\u002B        var result = TypeScriptConventionService.GetTypescriptTypeString(targetType, targetElement, false);\n\u002B\n\u002B        Assert.Equal(\u0022Policy\u0022, result);\n\u002B    }\n\u002B\n\u002B    [Fact]\n\u002B    public void GetTypescriptTypeString_IgnoresTheUsing_WhenItCarriesNoAlias()\n\u002B    {\n\u002B        var (targetElement, targetType) = BuildCodeFileWithUsing(string.Empty);\n\u002B\n\u002B        var result = TypeScriptConventionService.GetTypescriptTypeString(targetType, targetElement, false);\n\u002B\n\u002B        Assert.Equal(\u0022Policy\u0022, result);\n\u002B    }\n\u002B\n\u002B    [Fact]\n\u002B    public void GetTypescriptTypeString_IgnoresTheAlias_WhenItBelongsToAnotherType()\n\u002B    {\n\u002B        var (targetElement, targetType) = BuildCodeFileWithUsing(\u0022SomeAliasedPolicy\u0022, aliasAnotherType: true);\n\u002B\n\u002B        var result = TypeScriptConventionService.GetTypescriptTypeString(targetType, targetElement, false);\n\u002B\n\u002B        Assert.Equal(\u0022Policy\u0022, result);\n\u002B    }\n\u002B\n     [Fact]\n     public void RemoveInvalidDescriptionCharacters_SanitizesCommentBreakoutCharacters()\n     {\n"
+            }
+          ]
+        }
+      ]
+    },
+    "DependencyGraph": {
+      "FileDependencies": {
+        "TypeScriptConventionService.cs": [
+          "System",
+          "CodeDOM",
+          "Extensions",
+          "CodeTypeBase",
+          "TypeScriptRefiner",
+          "Collections",
+          "Generic",
+          "Globalization",
+          "Linq",
+          "Runtime",
+          "CompilerServices",
+          "Kiota",
+          "Builder",
+          "Refiners",
+          "Writers",
+          "TypeScript",
+          "CommonLanguageConventionService",
+          "LanguageWriter",
+          "WriteLine",
+          "TYPE_ARRAYBUFFER",
+          "IsNullOrEmpty",
+          "TempDictionaryVarName",
+          "Length",
+          "WriteLines",
+          "Select",
+          "Item2",
+          "SanitizeDoubleQuote",
+          "Item3",
+          "ToArray",
+          "AccessModifier",
+          "Public",
+          "Protected",
+          "CodeParameter",
+          "CodeElement",
+          "ArgumentNullException",
+          "ThrowIfNull",
+          "GetOriginalComposedType",
+          "Type",
+          "GetTypescriptTypeString",
+          "Parent",
+          "CodeMethod",
+          "IsOfKind",
+          "CodeMethodKind",
+          "Serializer",
+          "CodeComposedTypeBase",
+          "Clone",
+          "Types",
+          "Where",
+          "IsPrimitiveTypeOrPrimitiveCollection",
+          "SetTypes",
+          "IsComposedOfPrimitives",
+          "IsPrimitiveType",
+          "DefaultValue",
+          "SanitizeQuotedStringLiteral",
+          "IsComposedOfObjects",
+          "Any",
+          "IsCollection",
+          "Deserializer",
+          "Empty",
+          "Kind",
+          "CodeParameterKind",
+          "DeserializationTarget",
+          "SerializingDerivedType",
+          "Name",
+          "ToFirstCharacterLowerCase",
+          "Optional",
+          "IsNullable",
+          "CollectionKind",
+          "CodeTypeCollectionKind",
+          "None",
+          "GetComposedTypeTypeString",
+          "CodeType",
+          "TypeDefinition",
+          "InvalidOperationException",
+          "GetType",
+          "GetTypeAlias",
+          "TranslateTypescriptType",
+          "GenericTypeParameterValues",
+          "Join",
+          "CodeUnionType",
+          "CodeIntersectionType",
+          "IBlock",
+          "CodeUsing",
+          "GetValue",
+          "GatherUsings",
+          "IsExternal",
+          "Declaration",
+          "Alias",
+          "CodeFile",
+          "GetChildElements",
+          "SelectMany",
+          "GetUsingsFromCodeElement",
+          "Usings",
+          "Array",
+          "TYPE_INTEGER",
+          "TYPE_INT",
+          "TYPE_INT64",
+          "TYPE_FLOAT",
+          "TYPE_DOUBLE",
+          "TYPE_BYTE",
+          "TYPE_SBYTE",
+          "TYPE_DECIMAL",
+          "TYPE_NUMBER",
+          "TYPE_BINARY",
+          "TYPE_BASE64",
+          "TYPE_BASE64URL",
+          "TYPE_STRING",
+          "TYPE_OBJECT",
+          "TYPE_BOOLEAN",
+          "TYPE_VOID",
+          "TYPE_LOWERCASE_STRING",
+          "TYPE_LOWERCASE_OBJECT",
+          "TYPE_LOWERCASE_BOOLEAN",
+          "TYPE_LOWERCASE_VOID",
+          "ToFirstCharacterUpperCase",
+          "GetCodeTypeName",
+          "CodeFunction",
+          "TYPE_BYTE_ARRAY",
+          "TYPE_GUID",
+          "TYPE_DATE",
+          "TYPE_DATE_ONLY",
+          "TYPE_TIME_ONLY",
+          "TYPE_DURATION",
+          "StringComparer",
+          "OrdinalIgnoreCase",
+          "InvalidCharactersReplacements",
+          "Aggregate",
+          "Replace",
+          "Key",
+          "Value",
+          "StringComparison",
+          "Ordinal",
+          "IDocumentedElement",
+          "Documentation",
+          "DescriptionAvailable",
+          "GetDescription",
+          "GetTypeString",
+          "ReferenceTypePrefix",
+          "ReferenceTypeSuffix",
+          "RemoveInvalidDescriptionCharacters",
+          "DocCommentStart",
+          "DocCommentEnd",
+          "ExternalDocumentationAvailable",
+          "DocCommentPrefix",
+          "IDeprecableElement",
+          "GetDeprecationComment",
+          "DocumentationLink",
+          "ToString",
+          "DocumentationLabel",
+          "Deprecation",
+          "IsDeprecated",
+          "Version",
+          "Date",
+          "CultureInfo",
+          "InvariantCulture",
+          "RemovalDate",
+          "EqualsIgnoreCase",
+          "CodeInterface",
+          "GetFactoryMethod",
+          "CodeEnum",
+          "CodeEnumObject",
+          "Flags",
+          "StreamTypeName",
+          "Equals",
+          "GetPrimitiveCollectionDeserializationType",
+          "GetFactoryMethodName",
+          "GetDeserializationMethodNameForPrimitiveOrObject"
+        ],
+        "TypeScriptConventionServiceTests.cs": [
+          "CodeDOM",
+          "TypeScript",
+          "Xunit",
+          "System",
+          "Linq",
+          "Kiota",
+          "Builder",
+          "Writers",
+          "Tests",
+          "Fact",
+          "TypeScriptConventionService",
+          "TranslateTypescriptType",
+          "Assert",
+          "Equal",
+          "TYPE_OBJECT",
+          "CodeUnionType",
+          "Name",
+          "CodeType",
+          "CodeNamespace",
+          "InitRootNamespace",
+          "AddClass",
+          "CodeClass",
+          "First",
+          "Parent",
+          "CurrentType",
+          "AddType",
+          "IsExternal",
+          "True",
+          "IsComposedOfPrimitives",
+          "IsPrimitiveType",
+          "TypeDefinition",
+          "False",
+          "IsComposedOfObjectsAndPrimitives",
+          "AddNamespace",
+          "CodeInterface",
+          "Kind",
+          "CodeInterfaceKind",
+          "Model",
+          "OriginalClass",
+          "AddMethod",
+          "CodeMethod",
+          "CodeMethodKind",
+          "Factory",
+          "ReturnType",
+          "IsStatic",
+          "CodeFunction",
+          "TryAddCodeFile",
+          "AddUsing",
+          "CodeUsing",
+          "Alias",
+          "Declaration",
+          "GetFactoryMethodName",
+          "CodeConstant",
+          "CodeConstantKind",
+          "QueryParametersMapper",
+          "BuildCodeFileWithUsing",
+          "GetTypescriptTypeString",
+          "Empty",
+          "CodeFile",
+          "GetChildElements",
+          "SelectMany",
+          "Usings",
+          "Single",
+          "RemoveInvalidDescriptionCharacters"
+        ]
+      },
+      "ReverseDependencies": {
+        "System": [
+          "TypeScriptConventionService.cs"
+        ],
+        "CodeDOM": [
+          "TypeScriptConventionService.cs",
+          "TypeScriptConventionServiceTests.cs"
+        ],
+        "Extensions": [
+          "TypeScriptConventionService.cs"
+        ],
+        "CodeTypeBase": [
+          "TypeScriptConventionService.cs"
+        ],
+        "TypeScriptRefiner": [
+          "TypeScriptConventionService.cs"
+        ],
+        "TypeScript": [
+          "TypeScriptConventionServiceTests.cs"
+        ],
+        "Xunit": [
+          "TypeScriptConventionServiceTests.cs"
+        ]
+      },
+      "EntryPoints": [
+        "TypeScriptConventionService.cs",
+        "TypeScriptConventionServiceTests.cs"
+      ]
+    },
+    "Metadata": null,
+    "Issue": null,
+    "EvaluationSummary": null,
+    "CodeAnalysis": {
+      "Complexity": [
+        {
+          "FilePath": "src/Kiota.Builder/Writers/TypeScript/TypeScriptConventionService.cs",
+          "MethodName": "GetTypeAlias",
+          "StartLine": 196,
+          "Complexity": 8
+        },
+        {
+          "FilePath": "src/Kiota.Builder/Writers/TypeScript/TypeScriptConventionService.cs",
+          "MethodName": "GatherUsings",
+          "StartLine": 215,
+          "Complexity": 2
+        },
+        {
+          "FilePath": "tests/Kiota.Builder.Tests/Writers/TypeScript/TypeScriptConventionServiceTests.cs",
+          "MethodName": "BuildCodeFileWithUsing",
+          "StartLine": 160,
+          "Complexity": 2
+        },
+        {
+          "FilePath": "tests/Kiota.Builder.Tests/Writers/TypeScript/TypeScriptConventionServiceTests.cs",
+          "MethodName": "GetTypescriptTypeString_ReturnsAlias_WhenTheEnclosingCodeFileHasAnAliasedUsing",
+          "StartLine": 192,
+          "Complexity": 1
+        },
+        {
+          "FilePath": "tests/Kiota.Builder.Tests/Writers/TypeScript/TypeScriptConventionServiceTests.cs",
+          "MethodName": "GetTypescriptTypeString_ReturnsTheSameAlias_WhenCalledRepeatedlyForTheSameBlock",
+          "StartLine": 202,
+          "Complexity": 1
+        },
+        {
+          "FilePath": "tests/Kiota.Builder.Tests/Writers/TypeScript/TypeScriptConventionServiceTests.cs",
+          "MethodName": "GetTypescriptTypeString_PicksUpAnAliasAssignedAfterAnEarlierLookup",
+          "StartLine": 216,
+          "Complexity": 1
+        },
+        {
+          "FilePath": "tests/Kiota.Builder.Tests/Writers/TypeScript/TypeScriptConventionServiceTests.cs",
+          "MethodName": "GetTypescriptTypeString_IgnoresTheAlias_WhenTheUsingIsExternal",
+          "StartLine": 235,
+          "Complexity": 1
+        },
+        {
+          "FilePath": "tests/Kiota.Builder.Tests/Writers/TypeScript/TypeScriptConventionServiceTests.cs",
+          "MethodName": "GetTypescriptTypeString_IgnoresTheUsing_WhenItCarriesNoAlias",
+          "StartLine": 245,
+          "Complexity": 1
+        },
+        {
+          "FilePath": "tests/Kiota.Builder.Tests/Writers/TypeScript/TypeScriptConventionServiceTests.cs",
+          "MethodName": "GetTypescriptTypeString_IgnoresTheAlias_WhenItBelongsToAnotherType",
+          "StartLine": 255,
+          "Complexity": 1
+        }
+      ],
+      "CallSites": [
+        {
+          "FilePath": "src/Kiota.Builder/Writers/TypeScript/TypeScriptConventionService.cs",
+          "MethodName": "GetTypeAlias",
+          "StartLine": 196,
+          "Callers": [
+            {
+              "FilePath": "src/Kiota.Builder/Writers/TypeScript/TypeScriptConventionService.cs",
+              "Line": 156,
+              "MethodName": "GetTypeAlias",
+              "CallingMethod": "GetTypescriptTypeString"
+            }
+          ]
+        },
+        {
+          "FilePath": "src/Kiota.Builder/Writers/TypeScript/TypeScriptConventionService.cs",
+          "MethodName": "GatherUsings",
+          "StartLine": 215,
+          "Callers": [
+            {
+              "FilePath": "src/Kiota.Builder/Writers/TypeScript/TypeScriptConventionService.cs",
+              "Line": 203,
+              "MethodName": "GatherUsings",
+              "CallingMethod": "GetTypeAlias"
+            }
+          ]
+        },
+        {
+          "FilePath": "tests/Kiota.Builder.Tests/Writers/TypeScript/TypeScriptConventionServiceTests.cs",
+          "MethodName": "BuildCodeFileWithUsing",
+          "StartLine": 160,
+          "Callers": [
+            {
+              "FilePath": "tests/Kiota.Builder.Tests/Writers/TypeScript/TypeScriptConventionServiceTests.cs",
+              "Line": 195,
+              "MethodName": "BuildCodeFileWithUsing",
+              "CallingMethod": "GetTypescriptTypeString_ReturnsAlias_WhenTheEnclosingCodeFileHasAnAliasedUsing"
+            },
+            {
+              "FilePath": "tests/Kiota.Builder.Tests/Writers/TypeScript/TypeScriptConventionServiceTests.cs",
+              "Line": 205,
+              "MethodName": "BuildCodeFileWithUsing",
+              "CallingMethod": "GetTypescriptTypeString_ReturnsTheSameAlias_WhenCalledRepeatedlyForTheSameBlock"
+            },
+            {
+              "FilePath": "tests/Kiota.Builder.Tests/Writers/TypeScript/TypeScriptConventionServiceTests.cs",
+              "Line": 221,
+              "MethodName": "BuildCodeFileWithUsing",
+              "CallingMethod": "GetTypescriptTypeString_PicksUpAnAliasAssignedAfterAnEarlierLookup"
+            },
+            {
+              "FilePath": "tests/Kiota.Builder.Tests/Writers/TypeScript/TypeScriptConventionServiceTests.cs",
+              "Line": 238,
+              "MethodName": "BuildCodeFileWithUsing",
+              "CallingMethod": "GetTypescriptTypeString_IgnoresTheAlias_WhenTheUsingIsExternal"
+            },
+            {
+              "FilePath": "tests/Kiota.Builder.Tests/Writers/TypeScript/TypeScriptConventionServiceTests.cs",
+              "Line": 248,
+              "MethodName": "BuildCodeFileWithUsing",
+              "CallingMethod": "GetTypescriptTypeString_IgnoresTheUsing_WhenItCarriesNoAlias"
+            },
+            {
+              "FilePath": "tests/Kiota.Builder.Tests/Writers/TypeScript/TypeScriptConventionServiceTests.cs",
+              "Line": 258,
+              "MethodName": "BuildCodeFileWithUsing",
+              "CallingMethod": "GetTypescriptTypeString_IgnoresTheAlias_WhenItBelongsToAnotherType"
+            }
+          ]
+        }
+      ],
+      "CodeSmells": [
+        {
+          "Type": "LargeClass",
+          "Description": "Class \u0027TypeScriptConventionService\u0027 has 67 members (max recommended: 20)",
+          "FilePath": "src/Kiota.Builder/Writers/TypeScript/TypeScriptConventionService.cs",
+          "Line": 14,
+          "Severity": "Medium"
+        },
+        {
+          "Type": "DuplicatedCode",
+          "Description": "Methods \u0027GetTypescriptTypeString_IgnoresTheAlias_WhenTheUsingIsExternal\u0027 and \u0027GetTypescriptTypeString_IgnoresTheAlias_WhenItBelongsToAnotherType\u0027 have 86% similarity",
+          "FilePath": "tests/Kiota.Builder.Tests/Writers/TypeScript/TypeScriptConventionServiceTests.cs",
+          "Line": 235,
+          "Severity": "High"
+        }
+      ],
+      "Notes": []
+    },
+    "Warnings": null,
+    "TokenUsage": null
+  },
+  "Result": {
+    "Findings": [
+      {
+        "Severity": "Critical",
+        "Category": "Other",
+        "File": "src/Kiota.Builder/Writers/TypeScript/TypeScriptConventionService.cs",
+        "Line": 203,
+        "Description": "Caching the usings per block with ConditionalWeakTable causes stale alias data when a using is added after the first lookup, breaking scenarios where aliases are introduced later (e.g., GetTypescriptTypeString_PicksUpAnAliasAssignedAfterAnEarlierLookup).",
+        "Recommendation": "Do not cache the usings; recompute them on each GetTypeAlias call or invalidate the cache whenever a using is added to the block.",
+        "CodeSnippet": "var usings = usingsByBlock.GetValue(block, static b =\u003E GatherUsings(b));",
+        "FixExample": null,
+        "Confidence": 0.95,
+        "QuickFix": "Remove the ConditionalWeakTable cache and compute usings directly on each GetTypeAlias call on line 203.",
+        "Summary": null,
+        "Metrics": null,
+        "Impact": null,
+        "ModernizationContext": null,
+        "References": null,
+        "Agents": [
+          "LogicAgent"
+        ],
+        "Evaluation": null,
+        "Grounded": null
+      }
+    ],
+    "Summary": "Reviewed 2 files. Found 1 findings across 1 files: 1 critical, 0 high, 0 medium, 0 low."
+  },
+  "Warnings": [],
+  "GenerationTokens": {
+    "Calls": 3,
+    "PromptTokens": 5960,
+    "CompletionTokens": 2089,
+    "ByModel": {
+      "openai/gpt-oss-20b": {
+        "Calls": 1,
+        "PromptTokens": 584,
+        "CompletionTokens": 372
+      },
+      "openai/gpt-oss-120b": {
+        "Calls": 2,
+        "PromptTokens": 5376,
+        "CompletionTokens": 1717
+      }
+    },
+    "Total": 8049
+  }
+}

@@ -1,0 +1,823 @@
+{
+  "Context": {
+    "RepositoryPath": "/var/folders/cx/j17y0q8103118l_jghqvtnb40000gn/T/838a888d-5cd3-40ee-8e3e-255927c9cd0c",
+    "CommitHash": "b6611848e7ec724751f198bec8dd01976823e4e5",
+    "BaseCommit": null,
+    "ChangedFiles": [
+      {
+        "Path": "src/NUnitFramework/framework/Assert.That.cs",
+        "Additions": 6,
+        "Deletions": 36,
+        "ChangeType": "Modified"
+      },
+      {
+        "Path": "src/NUnitFramework/framework/Internal/Commands/TestActionCommand.cs",
+        "Additions": 15,
+        "Deletions": 53,
+        "ChangeType": "Modified"
+      },
+      {
+        "Path": "src/NUnitFramework/framework/Internal/Commands/TestActionHookRunner.cs",
+        "Additions": 43,
+        "Deletions": 0,
+        "ChangeType": "Added"
+      },
+      {
+        "Path": "src/NUnitFramework/framework/Internal/Commands/TestActionItem.cs",
+        "Additions": 20,
+        "Deletions": 53,
+        "ChangeType": "Modified"
+      },
+      {
+        "Path": "src/NUnitFramework/framework/Internal/ConstraintEvaluator.cs",
+        "Additions": 84,
+        "Deletions": 0,
+        "ChangeType": "Added"
+      },
+      {
+        "Path": "src/NUnitFramework/framework/Internal/StackFilter.cs",
+        "Additions": 1,
+        "Deletions": 1,
+        "ChangeType": "Modified"
+      },
+      {
+        "Path": "src/NUnitFramework/framework/Warn.cs",
+        "Additions": 29,
+        "Deletions": 64,
+        "ChangeType": "Modified"
+      }
+    ],
+    "Diff": {
+      "Summary": "7 files changed",
+      "Files": [
+        {
+          "Path": "src/NUnitFramework/framework/Assert.That.cs",
+          "OldPath": "src/NUnitFramework/framework/Assert.That.cs",
+          "ChangeType": "Modified",
+          "Hunks": [
+            {
+              "OldStart": 115,
+              "OldLines": 12,
+              "NewStart": 115,
+              "NewLines": 7,
+              "Content": "             [CallerArgumentExpression(nameof(code))] string actualExpression = \u0022\u0022,\n             [CallerArgumentExpression(nameof(expr))] string constraintExpression = \u0022\u0022)\n         {\n-            var constraint = expr.Resolve();\n-\n-            IncrementAssertCount();\n-            var result = constraint.ApplyTo(code);\n-            if (!result.IsSuccess)\n-                ReportFailure(result, message.ToString(), actualExpression, constraintExpression);\n\u002B            ConstraintEvaluator.Evaluate(code, expr, message, actualExpression, constraintExpression, ReportFailure);\n         }\n \n         /// \u003Csummary\u003E\n"
+            },
+            {
+              "OldStart": 135,
+              "OldLines": 12,
+              "NewStart": 130,
+              "NewLines": 7,
+              "Content": "             [CallerArgumentExpression(nameof(code))] string actualExpression = \u0022\u0022,\n             [CallerArgumentExpression(nameof(expr))] string constraintExpression = \u0022\u0022)\n         {\n-            var constraint = expr.Resolve();\n-\n-            IncrementAssertCount();\n-            var result = constraint.ApplyTo(code);\n-            if (!result.IsSuccess)\n-                ReportFailure(result, message.ToString(), actualExpression, constraintExpression);\n\u002B            ConstraintEvaluator.Evaluate(code, expr, message, actualExpression, constraintExpression, ReportFailure);\n         }\n \n         /// \u003Csummary\u003E\n"
+            },
+            {
+              "OldStart": 157,
+              "OldLines": 12,
+              "NewStart": 147,
+              "NewLines": 7,
+              "Content": "             [CallerArgumentExpression(nameof(code))] string actualExpression = \u0022\u0022,\n             [CallerArgumentExpression(nameof(expr))] string constraintExpression = \u0022\u0022)\n         {\n-            var constraint = expr.Resolve();\n-\n-            IncrementAssertCount();\n-            var result = constraint.ApplyTo(code);\n-            if (!result.IsSuccess)\n-                ReportFailure(result, getExceptionMessage(), actualExpression, constraintExpression);\n\u002B            ConstraintEvaluator.Evaluate(code, expr, getExceptionMessage, actualExpression, constraintExpression, ReportFailure);\n         }\n \n         #endregion\n"
+            },
+            {
+              "OldStart": 230,
+              "OldLines": 12,
+              "NewStart": 215,
+              "NewLines": 7,
+              "Content": "             [CallerArgumentExpression(nameof(actual))] string actualExpression = \u0022\u0022,\n             [CallerArgumentExpression(nameof(expression))] string constraintExpression = \u0022\u0022)\n         {\n-            var constraint = expression.Resolve();\n-\n-            IncrementAssertCount();\n-            var result = constraint.ApplyTo(actual);\n-            if (!result.IsSuccess)\n-                ReportFailure(result, message.ToString(), actualExpression, constraintExpression);\n\u002B            ConstraintEvaluator.Evaluate(actual, expression, message, actualExpression, constraintExpression, ReportFailure);\n         }\n \n         /// \u003Csummary\u003E\n"
+            },
+            {
+              "OldStart": 251,
+              "OldLines": 12,
+              "NewStart": 231,
+              "NewLines": 7,
+              "Content": "             [CallerArgumentExpression(nameof(actual))] string actualExpression = \u0022\u0022,\n             [CallerArgumentExpression(nameof(expression))] string constraintExpression = \u0022\u0022)\n         {\n-            var constraint = expression.Resolve();\n-\n-            IncrementAssertCount();\n-            var result = constraint.ApplyTo(actual);\n-            if (!result.IsSuccess)\n-                ReportFailure(result, message.ToString(), actualExpression, constraintExpression);\n\u002B            ConstraintEvaluator.Evaluate(actual, expression, message, actualExpression, constraintExpression, ReportFailure);\n         }\n \n         /// \u003Csummary\u003E\n"
+            },
+            {
+              "OldStart": 274,
+              "OldLines": 12,
+              "NewStart": 249,
+              "NewLines": 7,
+              "Content": "             [CallerArgumentExpression(nameof(actual))] string actualExpression = \u0022\u0022,\n             [CallerArgumentExpression(nameof(expression))] string constraintExpression = \u0022\u0022)\n         {\n-            var constraint = expression.Resolve();\n-\n-            IncrementAssertCount();\n-            var result = constraint.ApplyTo(actual);\n-            if (!result.IsSuccess)\n-                ReportFailure(result, getExceptionMessage(), actualExpression, constraintExpression);\n\u002B            ConstraintEvaluator.Evaluate(actual, expression, getExceptionMessage, actualExpression, constraintExpression, ReportFailure);\n         }\n \n         #endregion\n"
+            }
+          ]
+        },
+        {
+          "Path": "src/NUnitFramework/framework/Internal/Commands/TestActionCommand.cs",
+          "OldPath": "src/NUnitFramework/framework/Internal/Commands/TestActionCommand.cs",
+          "ChangeType": "Modified",
+          "Hunks": [
+            {
+              "OldStart": 22,
+              "OldLines": 59,
+              "NewStart": 22,
+              "NewLines": 21,
+              "Content": "             Guard.ArgumentValid(innerCommand.Test is TestMethod, \u0022TestActionCommand may only apply to a TestMethod\u0022, nameof(innerCommand));\n             ArgumentNullException.ThrowIfNull(action);\n \n-            BeforeTest = context =\u003E\n-            {\n-                Action beforeTestMethod = context.ExecutionHooksEnabled ?\n-                    RunBeforeTestWithHooks : RunBeforeTest;\n-\n-                beforeTestMethod();\n-\n-                void RunBeforeTestWithHooks()\n-                {\n-                    var hookedMethodInfo = new MethodWrapper(action.GetType(), nameof(ITestAction.BeforeTest));\n-                    try\n-                    {\n-                        context.ExecutionHooks.OnBeforeTestActionBeforeTest(context, hookedMethodInfo);\n-\n-                        RunBeforeTest();\n-                    }\n-                    catch (Exception ex)\n-                    {\n-                        context.ExecutionHooks.OnAfterTestActionBeforeTest(context, hookedMethodInfo, ex);\n-                        throw;\n-                    }\n-                    context.ExecutionHooks.OnAfterTestActionBeforeTest(context, hookedMethodInfo);\n-                }\n-\n-                void RunBeforeTest() =\u003E action.BeforeTest(Test);\n-            };\n-\n-            AfterTest = context =\u003E\n-            {\n-                Action afterTestMethod = context.ExecutionHooksEnabled ?\n-                    RunAfterTestWithHooks : RunAfterTest;\n-\n-                afterTestMethod();\n-\n-                void RunAfterTestWithHooks()\n-                {\n-                    var hookedMethodInfo = new MethodWrapper(action.GetType(), nameof(ITestAction.AfterTest));\n-                    try\n-                    {\n-                        context.ExecutionHooks.OnBeforeTestActionAfterTest(context, hookedMethodInfo);\n-\n-                        RunAfterTest();\n-                    }\n-                    catch (Exception ex)\n-                    {\n-                        context.ExecutionHooks.OnAfterTestActionAfterTest(context, hookedMethodInfo, ex);\n-                        throw;\n-                    }\n-                    context.ExecutionHooks.OnAfterTestActionAfterTest(context, hookedMethodInfo);\n-                }\n-\n-                void RunAfterTest() =\u003E action.AfterTest(Test);\n-            };\n\u002B            BeforeTest = context =\u003E TestActionHookRunner.Run(\n\u002B                context,\n\u002B                action.GetType(),\n\u002B                nameof(ITestAction.BeforeTest),\n\u002B                (ctx, m) =\u003E ctx.ExecutionHooks.OnBeforeTestActionBeforeTest(ctx, m),\n\u002B                (ctx, m, ex) =\u003E ctx.ExecutionHooks.OnAfterTestActionBeforeTest(ctx, m, ex),\n\u002B                () =\u003E action.BeforeTest(Test));\n\u002B\n\u002B            AfterTest = context =\u003E TestActionHookRunner.Run(\n\u002B                context,\n\u002B                action.GetType(),\n\u002B                nameof(ITestAction.AfterTest),\n\u002B                (ctx, m) =\u003E ctx.ExecutionHooks.OnBeforeTestActionAfterTest(ctx, m),\n\u002B                (ctx, m, ex) =\u003E ctx.ExecutionHooks.OnAfterTestActionAfterTest(ctx, m, ex),\n\u002B                () =\u003E action.AfterTest(Test));\n         }\n     }\n }\n"
+            }
+          ]
+        },
+        {
+          "Path": "src/NUnitFramework/framework/Internal/Commands/TestActionHookRunner.cs",
+          "OldPath": "src/NUnitFramework/framework/Internal/Commands/TestActionHookRunner.cs",
+          "ChangeType": "Added",
+          "Hunks": [
+            {
+              "OldStart": 0,
+              "OldLines": 0,
+              "NewStart": 1,
+              "NewLines": 43,
+              "Content": "\u002B// Copyright (c) Charlie Poole, Rob Prouse and Contributors. MIT License - see LICENSE.txt\n\u002B\n\u002Busing System;\n\u002Busing NUnit.Framework.Interfaces;\n\u002B\n\u002Bnamespace NUnit.Framework.Internal.Commands\n\u002B{\n\u002B    /// \u003Csummary\u003E\n\u002B    /// Runs a single ITestAction.BeforeTest/AfterTest invocation, wrapping it with the\n\u002B    /// matching pair of ExecutionHooks callbacks when hooks are enabled for the context.\n\u002B    /// \u003C/summary\u003E\n\u002B    internal static class TestActionHookRunner\n\u002B    {\n\u002B        public static void Run(\n\u002B            TestExecutionContext context,\n\u002B            Type actionType,\n\u002B            string methodName,\n\u002B            Action\u003CTestExecutionContext, IMethodInfo\u003E onBeforeHook,\n\u002B            Action\u003CTestExecutionContext, IMethodInfo, Exception?\u003E onAfterHook,\n\u002B            Action run)\n\u002B        {\n\u002B            if (!context.ExecutionHooksEnabled)\n\u002B            {\n\u002B                run();\n\u002B                return;\n\u002B            }\n\u002B\n\u002B            var hookedMethodInfo = new MethodWrapper(actionType, methodName);\n\u002B            try\n\u002B            {\n\u002B                onBeforeHook(context, hookedMethodInfo);\n\u002B                run();\n\u002B            }\n\u002B            catch (Exception ex)\n\u002B            {\n\u002B                onAfterHook(context, hookedMethodInfo, ex);\n\u002B                throw;\n\u002B            }\n\u002B\n\u002B            onAfterHook(context, hookedMethodInfo, null);\n\u002B        }\n\u002B    }\n\u002B}\n"
+            }
+          ]
+        },
+        {
+          "Path": "src/NUnitFramework/framework/Internal/Commands/TestActionItem.cs",
+          "OldPath": "src/NUnitFramework/framework/Internal/Commands/TestActionItem.cs",
+          "ChangeType": "Modified",
+          "Hunks": [
+            {
+              "OldStart": 1,
+              "OldLines": 7,
+              "NewStart": 1,
+              "NewLines": 5,
+              "Content": " // Copyright (c) Charlie Poole, Rob Prouse and Contributors. MIT License - see LICENSE.txt\n \n-using System;\n-\n namespace NUnit.Framework.Internal.Commands\n {\n     /// \u003Csummary\u003E\n"
+            },
+            {
+              "OldStart": 41,
+              "OldLines": 33,
+              "NewStart": 39,
+              "NewLines": 17,
+              "Content": "         {\n             var context = TestExecutionContext.CurrentContext;\n \n-            Action beforeTestMethod = context.ExecutionHooksEnabled ?\n-                RunBeforeTestWithHooks : RunBeforeTest;\n-\n-            beforeTestMethod();\n-\n-            void RunBeforeTestWithHooks()\n-            {\n-                var hookedMethodInfo = new MethodWrapper(_action.GetType(), nameof(ITestAction.BeforeTest));\n-                try\n-                {\n-                    context.ExecutionHooks.OnBeforeTestActionBeforeTest(context, hookedMethodInfo);\n-\n-                    RunBeforeTest();\n-                }\n-                catch (Exception ex)\n\u002B            TestActionHookRunner.Run(\n\u002B                context,\n\u002B                _action.GetType(),\n\u002B                nameof(ITestAction.BeforeTest),\n\u002B                (ctx, m) =\u003E ctx.ExecutionHooks.OnBeforeTestActionBeforeTest(ctx, m),\n\u002B                (ctx, m, ex) =\u003E ctx.ExecutionHooks.OnAfterTestActionBeforeTest(ctx, m, ex),\n\u002B                () =\u003E\n                 {\n-                    context.ExecutionHooks.OnAfterTestActionBeforeTest(context, hookedMethodInfo, ex);\n-                    throw;\n-                }\n-                context.ExecutionHooks.OnAfterTestActionBeforeTest(context, hookedMethodInfo);\n-            }\n-\n-            void RunBeforeTest()\n-            {\n-                BeforeTestWasRun = true;\n-                _action.BeforeTest(test);\n-            }\n\u002B                    BeforeTestWasRun = true;\n\u002B                    _action.BeforeTest(test);\n\u002B                });\n         }\n \n         /// \u003Csummary\u003E\n"
+            },
+            {
+              "OldStart": 78,
+              "OldLines": 33,
+              "NewStart": 60,
+              "NewLines": 18,
+              "Content": "         public void AfterTest(Interfaces.ITest test)\n         {\n             var context = TestExecutionContext.CurrentContext;\n-            Action afterTestMethod = context.ExecutionHooksEnabled ?\n-                RunAfterTestWithHooks : RunAfterTest;\n-\n-            afterTestMethod();\n-\n-            void RunAfterTest()\n-            {\n-                if (BeforeTestWasRun)\n-                    _action.AfterTest(test);\n-            }\n-\n-            void RunAfterTestWithHooks()\n-            {\n-                var hookedMethodInfo = new MethodWrapper(_action.GetType(), nameof(ITestAction.AfterTest));\n-                try\n-                {\n-                    context.ExecutionHooks.OnBeforeTestActionAfterTest(context, hookedMethodInfo);\n \n-                    RunAfterTest();\n-                }\n-                catch (Exception ex)\n\u002B            TestActionHookRunner.Run(\n\u002B                context,\n\u002B                _action.GetType(),\n\u002B                nameof(ITestAction.AfterTest),\n\u002B                (ctx, m) =\u003E ctx.ExecutionHooks.OnBeforeTestActionAfterTest(ctx, m),\n\u002B                (ctx, m, ex) =\u003E ctx.ExecutionHooks.OnAfterTestActionAfterTest(ctx, m, ex),\n\u002B                () =\u003E\n                 {\n-                    context.ExecutionHooks.OnAfterTestActionAfterTest(context, hookedMethodInfo, ex);\n-                    throw;\n-                }\n-                context.ExecutionHooks.OnAfterTestActionAfterTest(context, hookedMethodInfo);\n-            }\n\u002B                    if (BeforeTestWasRun)\n\u002B                        _action.AfterTest(test);\n\u002B                });\n         }\n     }\n }\n"
+            }
+          ]
+        },
+        {
+          "Path": "src/NUnitFramework/framework/Internal/ConstraintEvaluator.cs",
+          "OldPath": "src/NUnitFramework/framework/Internal/ConstraintEvaluator.cs",
+          "ChangeType": "Added",
+          "Hunks": [
+            {
+              "OldStart": 0,
+              "OldLines": 0,
+              "NewStart": 1,
+              "NewLines": 84,
+              "Content": "\u002B// Copyright (c) Charlie Poole, Rob Prouse and Contributors. MIT License - see LICENSE.txt\n\u002B\n\u002Busing System;\n\u002Busing NUnit.Framework.Constraints;\n\u002B\n\u002Bnamespace NUnit.Framework.Internal\n\u002B{\n\u002B    /// \u003Csummary\u003E\n\u002B    /// Resolves a constraint, applies it, and dispatches the result to a failure handler.\n\u002B    /// Shared by \u003Csee cref=\u0022NUnit.Framework.Assert\u0022/\u003E and \u003Csee cref=\u0022NUnit.Framework.Warn\u0022/\u003E,\n\u002B    /// which differ only in what they do when the constraint is not satisfied.\n\u002B    /// \u003C/summary\u003E\n\u002B    /// \u003Cremarks\u003E\n\u002B    /// The actual value/delegate and message are passed through as plain generic parameters rather\n\u002B    /// than captured in a delegate, so a successful assertion allocates nothing beyond what the\n\u002B    /// caller already provided.\n\u002B    /// \u003C/remarks\u003E\n\u002B    internal static class ConstraintEvaluator\n\u002B    {\n\u002B        public static void Evaluate\u003CTActual, TMessage\u003E(\n\u002B            Func\u003CTActual\u003E code,\n\u002B            IResolveConstraint expr,\n\u002B            TMessage message,\n\u002B            string actualExpression,\n\u002B            string constraintExpression,\n\u002B            Action\u003CConstraintResult, string, string, string\u003E onFailure)\n\u002B        {\n\u002B            var constraint = expr.Resolve();\n\u002B\n\u002B            TestExecutionContext.CurrentContext.IncrementAssertCount();\n\u002B            var result = constraint.ApplyTo(code);\n\u002B            if (!result.IsSuccess)\n\u002B                onFailure(result, message!.ToString()!, actualExpression, constraintExpression);\n\u002B        }\n\u002B\n\u002B        public static void Evaluate\u003CTActual\u003E(\n\u002B            Func\u003CTActual\u003E code,\n\u002B            IResolveConstraint expr,\n\u002B            Func\u003Cstring\u003E getExceptionMessage,\n\u002B            string actualExpression,\n\u002B            string constraintExpression,\n\u002B            Action\u003CConstraintResult, string, string, string\u003E onFailure)\n\u002B        {\n\u002B            var constraint = expr.Resolve();\n\u002B\n\u002B            TestExecutionContext.CurrentContext.IncrementAssertCount();\n\u002B            var result = constraint.ApplyTo(code);\n\u002B            if (!result.IsSuccess)\n\u002B                onFailure(result, getExceptionMessage(), actualExpression, constraintExpression);\n\u002B        }\n\u002B\n\u002B        public static void Evaluate\u003CTActual, TMessage\u003E(\n\u002B            TActual actual,\n\u002B            IResolveConstraint expr,\n\u002B            TMessage message,\n\u002B            string actualExpression,\n\u002B            string constraintExpression,\n\u002B            Action\u003CConstraintResult, string, string, string\u003E onFailure)\n\u002B        {\n\u002B            var constraint = expr.Resolve();\n\u002B\n\u002B            TestExecutionContext.CurrentContext.IncrementAssertCount();\n\u002B            var result = constraint.ApplyTo(actual);\n\u002B            if (!result.IsSuccess)\n\u002B                onFailure(result, message!.ToString()!, actualExpression, constraintExpression);\n\u002B        }\n\u002B\n\u002B        public static void Evaluate\u003CTActual\u003E(\n\u002B            TActual actual,\n\u002B            IResolveConstraint expr,\n\u002B            Func\u003Cstring\u003E getExceptionMessage,\n\u002B            string actualExpression,\n\u002B            string constraintExpression,\n\u002B            Action\u003CConstraintResult, string, string, string\u003E onFailure)\n\u002B        {\n\u002B            var constraint = expr.Resolve();\n\u002B\n\u002B            TestExecutionContext.CurrentContext.IncrementAssertCount();\n\u002B            var result = constraint.ApplyTo(actual);\n\u002B            if (!result.IsSuccess)\n\u002B                onFailure(result, getExceptionMessage(), actualExpression, constraintExpression);\n\u002B        }\n\u002B    }\n\u002B}\n"
+            }
+          ]
+        },
+        {
+          "Path": "src/NUnitFramework/framework/Internal/StackFilter.cs",
+          "OldPath": "src/NUnitFramework/framework/Internal/StackFilter.cs",
+          "ChangeType": "Modified",
+          "Hunks": [
+            {
+              "OldStart": 13,
+              "OldLines": 7,
+              "NewStart": 13,
+              "NewLines": 7,
+              "Content": "     /// \u003C/summary\u003E\n     public class StackFilter\n     {\n-        private const string DEFAULT_TOP_OF_STACK_PATTERN = @\u0022 NUnit\\.Framework\\.(Assert|Assume|Warn|CollectionAssert|StringAssert|FileAssert|DirectoryAssert)\\.\u0022;\n\u002B        private const string DEFAULT_TOP_OF_STACK_PATTERN = @\u0022 NUnit\\.Framework\\.(Assert|Assume|Warn|CollectionAssert|StringAssert|FileAssert|DirectoryAssert)\\.| NUnit\\.Framework\\.Internal\\.ConstraintEvaluator\\.\u0022;\n         private const string DEFAULT_BOTTOM_OF_STACK_PATTERN = @\u0022 System\\.(Reflection|RuntimeMethodHandle|Threading\\.ExecutionContext)\\.\u0022;\n \n         /// \u003Csummary\u003E\n"
+            }
+          ]
+        },
+        {
+          "Path": "src/NUnitFramework/framework/Warn.cs",
+          "OldPath": "src/NUnitFramework/framework/Warn.cs",
+          "ChangeType": "Modified",
+          "Hunks": [
+            {
+              "OldStart": 66,
+              "OldLines": 13,
+              "NewStart": 66,
+              "NewLines": 8,
+              "Content": "             [CallerArgumentExpression(nameof(code))] string actualExpression = \u0022\u0022,\n             [CallerArgumentExpression(nameof(expr))] string constraintExpression = \u0022\u0022)\n         {\n-            var constraint = expr.Resolve();\n-\n-            IncrementAssertCount();\n-            var result = constraint.ApplyTo(code);\n-\n-            if (!result.IsSuccess)\n-                IssueWarning(result, nameof(Unless), message.ToString(), actualExpression, constraintExpression);\n\u002B            ConstraintEvaluator.Evaluate(code, expr, message, actualExpression, constraintExpression,\n\u002B                IssueUnlessWarning);\n         }\n \n         /// \u003Csummary\u003E\n"
+            },
+            {
+              "OldStart": 88,
+              "OldLines": 13,
+              "NewStart": 83,
+              "NewLines": 8,
+              "Content": "             [CallerArgumentExpression(nameof(code))] string actualExpression = \u0022\u0022,\n             [CallerArgumentExpression(nameof(expr))] string constraintExpression = \u0022\u0022)\n         {\n-            var constraint = expr.Resolve();\n-\n-            IncrementAssertCount();\n-            var result = constraint.ApplyTo(code);\n-\n-            if (!result.IsSuccess)\n-                IssueWarning(result, nameof(Unless), message.ToString(), actualExpression, constraintExpression);\n\u002B            ConstraintEvaluator.Evaluate(code, expr, message, actualExpression, constraintExpression,\n\u002B                IssueUnlessWarning);\n         }\n \n         /// \u003Csummary\u003E\n"
+            },
+            {
+              "OldStart": 112,
+              "OldLines": 13,
+              "NewStart": 102,
+              "NewLines": 8,
+              "Content": "             [CallerArgumentExpression(nameof(code))] string actualExpression = \u0022\u0022,\n             [CallerArgumentExpression(nameof(expr))] string constraintExpression = \u0022\u0022)\n         {\n-            var constraint = expr.Resolve();\n-\n-            IncrementAssertCount();\n-            var result = constraint.ApplyTo(code);\n-\n-            if (!result.IsSuccess)\n-                IssueWarning(result, nameof(Unless), getExceptionMessage(), actualExpression, constraintExpression);\n\u002B            ConstraintEvaluator.Evaluate(code, expr, getExceptionMessage, actualExpression, constraintExpression,\n\u002B                IssueUnlessWarning);\n         }\n \n         #endregion\n"
+            },
+            {
+              "OldStart": 218,
+              "OldLines": 7,
+              "NewStart": 203,
+              "NewLines": 8,
+              "Content": "             [CallerArgumentExpression(nameof(actual))] string actualExpression = \u0022\u0022,\n             [CallerArgumentExpression(nameof(expression))] string constraintExpression = \u0022\u0022)\n         {\n-            Unless(actual, expression, () =\u003E message.ToString(), actualExpression, constraintExpression);\n\u002B            ConstraintEvaluator.Evaluate(actual, expression, message, actualExpression, constraintExpression,\n\u002B                IssueUnlessWarning);\n         }\n \n         /// \u003Csummary\u003E\n"
+            },
+            {
+              "OldStart": 234,
+              "OldLines": 7,
+              "NewStart": 220,
+              "NewLines": 8,
+              "Content": "             [CallerArgumentExpression(nameof(actual))] string actualExpression = \u0022\u0022,\n             [CallerArgumentExpression(nameof(expression))] string constraintExpression = \u0022\u0022)\n         {\n-            Unless(actual, expression, () =\u003E message.ToString(), actualExpression, constraintExpression);\n\u002B            ConstraintEvaluator.Evaluate(actual, expression, message, actualExpression, constraintExpression,\n\u002B                IssueUnlessWarning);\n         }\n \n         /// \u003Csummary\u003E\n"
+            },
+            {
+              "OldStart": 252,
+              "OldLines": 13,
+              "NewStart": 239,
+              "NewLines": 8,
+              "Content": "             [CallerArgumentExpression(nameof(actual))] string actualExpression = \u0022\u0022,\n             [CallerArgumentExpression(nameof(expression))] string constraintExpression = \u0022\u0022)\n         {\n-            var constraint = expression.Resolve();\n-\n-            IncrementAssertCount();\n-            var result = constraint.ApplyTo(actual);\n-\n-            if (!result.IsSuccess)\n-                IssueWarning(result, nameof(Unless), getExceptionMessage(), actualExpression, constraintExpression);\n\u002B            ConstraintEvaluator.Evaluate(actual, expression, getExceptionMessage, actualExpression, constraintExpression,\n\u002B                IssueUnlessWarning);\n         }\n \n         #endregion\n"
+            },
+            {
+              "OldStart": 282,
+              "OldLines": 13,
+              "NewStart": 264,
+              "NewLines": 8,
+              "Content": "             [CallerArgumentExpression(nameof(code))] string actualExpression = \u0022\u0022,\n             [CallerArgumentExpression(nameof(expr))] string constraintExpression = \u0022\u0022)\n         {\n-            var constraint = new NotConstraint(expr.Resolve());\n-\n-            IncrementAssertCount();\n-            var result = constraint.ApplyTo(code);\n-\n-            if (!result.IsSuccess)\n-                IssueWarning(result, nameof(If), message.ToString(), actualExpression, constraintExpression);\n\u002B            ConstraintEvaluator.Evaluate(code, new NotConstraint(expr.Resolve()), message, actualExpression, constraintExpression,\n\u002B                IssueIfWarning);\n         }\n \n         /// \u003Csummary\u003E\n"
+            },
+            {
+              "OldStart": 304,
+              "OldLines": 13,
+              "NewStart": 281,
+              "NewLines": 8,
+              "Content": "             [CallerArgumentExpression(nameof(code))] string actualExpression = \u0022\u0022,\n             [CallerArgumentExpression(nameof(expr))] string constraintExpression = \u0022\u0022)\n         {\n-            var constraint = new NotConstraint(expr.Resolve());\n-\n-            IncrementAssertCount();\n-            var result = constraint.ApplyTo(code);\n-\n-            if (!result.IsSuccess)\n-                IssueWarning(result, nameof(If), message.ToString(), actualExpression, constraintExpression);\n\u002B            ConstraintEvaluator.Evaluate(code, new NotConstraint(expr.Resolve()), message, actualExpression, constraintExpression,\n\u002B                IssueIfWarning);\n         }\n \n         /// \u003Csummary\u003E\n"
+            },
+            {
+              "OldStart": 328,
+              "OldLines": 13,
+              "NewStart": 300,
+              "NewLines": 8,
+              "Content": "             [CallerArgumentExpression(nameof(code))] string actualExpression = \u0022\u0022,\n             [CallerArgumentExpression(nameof(expr))] string constraintExpression = \u0022\u0022)\n         {\n-            var constraint = new NotConstraint(expr.Resolve());\n-\n-            IncrementAssertCount();\n-            var result = constraint.ApplyTo(code);\n-\n-            if (!result.IsSuccess)\n-                IssueWarning(result, nameof(If), getExceptionMessage(), actualExpression, constraintExpression);\n\u002B            ConstraintEvaluator.Evaluate(code, new NotConstraint(expr.Resolve()), getExceptionMessage, actualExpression, constraintExpression,\n\u002B                IssueIfWarning);\n         }\n \n         #endregion\n"
+            },
+            {
+              "OldStart": 434,
+              "OldLines": 7,
+              "NewStart": 401,
+              "NewLines": 8,
+              "Content": "             [CallerArgumentExpression(nameof(actual))] string actualExpression = \u0022\u0022,\n             [CallerArgumentExpression(nameof(expression))] string constraintExpression = \u0022\u0022)\n         {\n-            If(actual, expression, () =\u003E message.ToString(), actualExpression, constraintExpression);\n\u002B            ConstraintEvaluator.Evaluate(actual, new NotConstraint(expression.Resolve()), message, actualExpression, constraintExpression,\n\u002B                IssueIfWarning);\n         }\n \n         /// \u003Csummary\u003E\n"
+            },
+            {
+              "OldStart": 450,
+              "OldLines": 7,
+              "NewStart": 418,
+              "NewLines": 8,
+              "Content": "             [CallerArgumentExpression(nameof(actual))] string actualExpression = \u0022\u0022,\n             [CallerArgumentExpression(nameof(expression))] string constraintExpression = \u0022\u0022)\n         {\n-            If(actual, expression, () =\u003E message.ToString(), actualExpression, constraintExpression);\n\u002B            ConstraintEvaluator.Evaluate(actual, new NotConstraint(expression.Resolve()), message, actualExpression, constraintExpression,\n\u002B                IssueIfWarning);\n         }\n \n         /// \u003Csummary\u003E\n"
+            },
+            {
+              "OldStart": 468,
+              "OldLines": 13,
+              "NewStart": 437,
+              "NewLines": 8,
+              "Content": "             [CallerArgumentExpression(nameof(actual))] string actualExpression = \u0022\u0022,\n             [CallerArgumentExpression(nameof(expression))] string constraintExpression = \u0022\u0022)\n         {\n-            var constraint = new NotConstraint(expression.Resolve());\n-\n-            IncrementAssertCount();\n-            var result = constraint.ApplyTo(actual);\n-\n-            if (!result.IsSuccess)\n-                IssueWarning(result, nameof(If), getExceptionMessage(), actualExpression, constraintExpression);\n\u002B            ConstraintEvaluator.Evaluate(actual, new NotConstraint(expression.Resolve()), getExceptionMessage, actualExpression, constraintExpression,\n\u002B                IssueIfWarning);\n         }\n \n         #endregion\n"
+            },
+            {
+              "OldStart": 483,
+              "OldLines": 10,
+              "NewStart": 447,
+              "NewLines": 11,
+              "Content": " \n         #region Helper Methods\n \n-        private static void IncrementAssertCount()\n-        {\n-            TestExecutionContext.CurrentContext.IncrementAssertCount();\n-        }\n\u002B        private static void IssueUnlessWarning(ConstraintResult result, string message, string actualExpression, string constraintExpression)\n\u002B            =\u003E IssueWarning(result, nameof(Unless), message, actualExpression, constraintExpression);\n\u002B\n\u002B        private static void IssueIfWarning(ConstraintResult result, string message, string actualExpression, string constraintExpression)\n\u002B            =\u003E IssueWarning(result, nameof(If), message, actualExpression, constraintExpression);\n \n         private static void IssueWarning(ConstraintResult result, string method, string message, string actualExpression, string constraintExpression)\n         {\n"
+            }
+          ]
+        }
+      ]
+    },
+    "DependencyGraph": {
+      "FileDependencies": {
+        "Assert.That.cs": [
+          "System",
+          "Constraints",
+          "Internal",
+          "Runtime",
+          "CompilerServices",
+          "NUnit",
+          "Framework",
+          "NUnitString",
+          "CallerArgumentExpression",
+          "That",
+          "Is",
+          "True",
+          "IsTrueExpression",
+          "FormattableString",
+          "Invoke",
+          "TActual",
+          "IResolveConstraint",
+          "ConstraintEvaluator",
+          "Evaluate",
+          "ReportFailure",
+          "Action",
+          "ConstraintResult",
+          "MessageWriter",
+          "TextMessageWriter",
+          "ExtendedMessage",
+          "Assert",
+          "WriteMessageTo",
+          "ToString"
+        ],
+        "TestActionCommand.cs": [
+          "System",
+          "NUnit",
+          "Framework",
+          "Internal",
+          "Commands",
+          "BeforeAndAfterTestCommand",
+          "TestCommand",
+          "ITestAction",
+          "Guard",
+          "ArgumentValid",
+          "Test",
+          "TestMethod",
+          "ArgumentNullException",
+          "ThrowIfNull",
+          "BeforeTest",
+          "TestActionHookRunner",
+          "Run",
+          "GetType",
+          "ExecutionHooks",
+          "OnBeforeTestActionBeforeTest",
+          "OnAfterTestActionBeforeTest",
+          "AfterTest",
+          "OnBeforeTestActionAfterTest",
+          "OnAfterTestActionAfterTest"
+        ],
+        "TestActionHookRunner.cs": [
+          "System",
+          "Interfaces",
+          "NUnit",
+          "Framework",
+          "Internal",
+          "Commands",
+          "TestExecutionContext",
+          "Type",
+          "IMethodInfo",
+          "Exception",
+          "Action",
+          "ExecutionHooksEnabled",
+          "MethodWrapper"
+        ],
+        "TestActionItem.cs": [
+          "NUnit",
+          "Framework",
+          "Internal",
+          "Commands",
+          "ITestAction",
+          "Interfaces",
+          "ITest",
+          "TestExecutionContext",
+          "CurrentContext",
+          "TestActionHookRunner",
+          "Run",
+          "GetType",
+          "BeforeTest",
+          "ExecutionHooks",
+          "OnBeforeTestActionBeforeTest",
+          "OnAfterTestActionBeforeTest",
+          "BeforeTestWasRun",
+          "AfterTest",
+          "OnBeforeTestActionAfterTest",
+          "OnAfterTestActionAfterTest"
+        ],
+        "ConstraintEvaluator.cs": [
+          "System",
+          "Constraints",
+          "NUnit",
+          "Framework",
+          "Internal",
+          "TActual",
+          "IResolveConstraint",
+          "TMessage",
+          "ConstraintResult",
+          "Resolve",
+          "TestExecutionContext",
+          "CurrentContext",
+          "IncrementAssertCount",
+          "ApplyTo",
+          "IsSuccess",
+          "ToString"
+        ],
+        "StackFilter.cs": [
+          "System",
+          "IO",
+          "Text",
+          "RegularExpressions",
+          "NUnit",
+          "Framework",
+          "Internal",
+          "Regex",
+          "RegexOptions",
+          "Compiled",
+          "DEFAULT_BOTTOM_OF_STACK_PATTERN",
+          "DEFAULT_TOP_OF_STACK_PATTERN",
+          "StringReader",
+          "StringWriter",
+          "ReadLine",
+          "IsMatch",
+          "WriteLine",
+          "Exception",
+          "ToString"
+        ],
+        "Warn.cs": [
+          "System",
+          "Constraints",
+          "Internal",
+          "ComponentModel",
+          "Runtime",
+          "CompilerServices",
+          "NUnit",
+          "Framework",
+          "EditorBrowsable",
+          "EditorBrowsableState",
+          "Never",
+          "InvalidOperationException",
+          "TActual",
+          "IResolveConstraint",
+          "NUnitString",
+          "CallerArgumentExpression",
+          "ConstraintEvaluator",
+          "Evaluate",
+          "IssueUnlessWarning",
+          "FormattableString",
+          "Unless",
+          "Is",
+          "True",
+          "ToString",
+          "Assert",
+          "IsTrueExpression",
+          "Invoke",
+          "NotConstraint",
+          "Resolve",
+          "IssueIfWarning",
+          "If",
+          "ConstraintResult",
+          "IssueWarning",
+          "MessageWriter",
+          "TextMessageWriter",
+          "ExtendedMessage",
+          "WriteMessageTo"
+        ]
+      },
+      "ReverseDependencies": {
+        "System": [
+          "Assert.That.cs",
+          "TestActionCommand.cs",
+          "TestActionHookRunner.cs",
+          "ConstraintEvaluator.cs",
+          "StackFilter.cs",
+          "Warn.cs"
+        ],
+        "Constraints": [
+          "Assert.That.cs",
+          "ConstraintEvaluator.cs",
+          "Warn.cs"
+        ],
+        "Internal": [
+          "Assert.That.cs",
+          "Warn.cs"
+        ],
+        "Interfaces": [
+          "TestActionHookRunner.cs"
+        ]
+      },
+      "EntryPoints": [
+        "Assert.That.cs",
+        "TestActionCommand.cs",
+        "TestActionHookRunner.cs",
+        "TestActionItem.cs",
+        "ConstraintEvaluator.cs",
+        "StackFilter.cs",
+        "Warn.cs"
+      ]
+    },
+    "Metadata": null,
+    "Issue": null,
+    "EvaluationSummary": null,
+    "CodeAnalysis": {
+      "Complexity": [
+        {
+          "FilePath": "src/NUnitFramework/framework/Internal/Commands/TestActionHookRunner.cs",
+          "MethodName": "Run",
+          "StartLine": 14,
+          "Complexity": 3
+        },
+        {
+          "FilePath": "src/NUnitFramework/framework/Internal/Commands/TestActionItem.cs",
+          "MethodName": "BeforeTest",
+          "StartLine": 38,
+          "Complexity": 1
+        },
+        {
+          "FilePath": "src/NUnitFramework/framework/Internal/Commands/TestActionItem.cs",
+          "MethodName": "AfterTest",
+          "StartLine": 60,
+          "Complexity": 2
+        },
+        {
+          "FilePath": "src/NUnitFramework/framework/Warn.cs",
+          "MethodName": "IssueUnlessWarning",
+          "StartLine": 450,
+          "Complexity": 1
+        },
+        {
+          "FilePath": "src/NUnitFramework/framework/Warn.cs",
+          "MethodName": "IssueIfWarning",
+          "StartLine": 453,
+          "Complexity": 1
+        }
+      ],
+      "CallSites": [],
+      "CodeSmells": [
+        {
+          "Type": "DuplicatedCode",
+          "Description": "Methods \u0027That\u0027 and \u0027That\u0027 have 100% similarity",
+          "FilePath": "src/NUnitFramework/framework/Assert.That.cs",
+          "Line": 31,
+          "Severity": "High"
+        },
+        {
+          "Type": "DuplicatedCode",
+          "Description": "Methods \u0027That\u0027 and \u0027That\u0027 have 100% similarity",
+          "FilePath": "src/NUnitFramework/framework/Assert.That.cs",
+          "Line": 71,
+          "Severity": "High"
+        },
+        {
+          "Type": "DuplicatedCode",
+          "Description": "Methods \u0027That\u0027 and \u0027That\u0027 have 100% similarity",
+          "FilePath": "src/NUnitFramework/framework/Assert.That.cs",
+          "Line": 113,
+          "Severity": "High"
+        },
+        {
+          "Type": "DuplicatedCode",
+          "Description": "Methods \u0027That\u0027 and \u0027That\u0027 have 100% similarity",
+          "FilePath": "src/NUnitFramework/framework/Assert.That.cs",
+          "Line": 163,
+          "Severity": "High"
+        },
+        {
+          "Type": "DuplicatedCode",
+          "Description": "Methods \u0027That\u0027 and \u0027That\u0027 have 100% similarity",
+          "FilePath": "src/NUnitFramework/framework/Assert.That.cs",
+          "Line": 213,
+          "Severity": "High"
+        },
+        {
+          "Type": "DuplicatedCode",
+          "Description": "Methods \u0027Evaluate\u0027 and \u0027Evaluate\u0027 have 81% similarity",
+          "FilePath": "src/NUnitFramework/framework/Internal/ConstraintEvaluator.cs",
+          "Line": 20,
+          "Severity": "High"
+        },
+        {
+          "Type": "DuplicatedCode",
+          "Description": "Methods \u0027Evaluate\u0027 and \u0027Evaluate\u0027 have 88% similarity",
+          "FilePath": "src/NUnitFramework/framework/Internal/ConstraintEvaluator.cs",
+          "Line": 20,
+          "Severity": "High"
+        },
+        {
+          "Type": "DuplicatedCode",
+          "Description": "Methods \u0027Evaluate\u0027 and \u0027Evaluate\u0027 have 87% similarity",
+          "FilePath": "src/NUnitFramework/framework/Internal/ConstraintEvaluator.cs",
+          "Line": 36,
+          "Severity": "High"
+        },
+        {
+          "Type": "DuplicatedCode",
+          "Description": "Methods \u0027Evaluate\u0027 and \u0027Evaluate\u0027 have 81% similarity",
+          "FilePath": "src/NUnitFramework/framework/Internal/ConstraintEvaluator.cs",
+          "Line": 52,
+          "Severity": "High"
+        },
+        {
+          "Type": "LargeClass",
+          "Description": "Class \u0027Warn\u0027 has 29 members (max recommended: 20)",
+          "FilePath": "src/NUnitFramework/framework/Warn.cs",
+          "Line": 19,
+          "Severity": "Medium"
+        },
+        {
+          "Type": "DuplicatedCode",
+          "Description": "Methods \u0027Unless\u0027 and \u0027Unless\u0027 have 100% similarity",
+          "FilePath": "src/NUnitFramework/framework/Warn.cs",
+          "Line": 64,
+          "Severity": "High"
+        },
+        {
+          "Type": "DuplicatedCode",
+          "Description": "Methods \u0027Unless\u0027 and \u0027Unless\u0027 have 100% similarity",
+          "FilePath": "src/NUnitFramework/framework/Warn.cs",
+          "Line": 118,
+          "Severity": "High"
+        },
+        {
+          "Type": "DuplicatedCode",
+          "Description": "Methods \u0027Unless\u0027 and \u0027Unless\u0027 have 100% similarity",
+          "FilePath": "src/NUnitFramework/framework/Warn.cs",
+          "Line": 158,
+          "Severity": "High"
+        },
+        {
+          "Type": "DuplicatedCode",
+          "Description": "Methods \u0027Unless\u0027 and \u0027Unless\u0027 have 100% similarity",
+          "FilePath": "src/NUnitFramework/framework/Warn.cs",
+          "Line": 201,
+          "Severity": "High"
+        },
+        {
+          "Type": "DuplicatedCode",
+          "Description": "Methods \u0027If\u0027 and \u0027If\u0027 have 100% similarity",
+          "FilePath": "src/NUnitFramework/framework/Warn.cs",
+          "Line": 262,
+          "Severity": "High"
+        },
+        {
+          "Type": "DuplicatedCode",
+          "Description": "Methods \u0027If\u0027 and \u0027If\u0027 have 100% similarity",
+          "FilePath": "src/NUnitFramework/framework/Warn.cs",
+          "Line": 316,
+          "Severity": "High"
+        },
+        {
+          "Type": "DuplicatedCode",
+          "Description": "Methods \u0027If\u0027 and \u0027If\u0027 have 100% similarity",
+          "FilePath": "src/NUnitFramework/framework/Warn.cs",
+          "Line": 356,
+          "Severity": "High"
+        },
+        {
+          "Type": "DuplicatedCode",
+          "Description": "Methods \u0027If\u0027 and \u0027If\u0027 have 100% similarity",
+          "FilePath": "src/NUnitFramework/framework/Warn.cs",
+          "Line": 399,
+          "Severity": "High"
+        }
+      ],
+      "Notes": [
+        "src/NUnitFramework/framework/Assert.That.cs: overloaded method \u0027That\u0027 not analysed for complexity/callers",
+        "src/NUnitFramework/framework/Internal/ConstraintEvaluator.cs: overloaded method \u0027Evaluate\u0027 not analysed for complexity/callers",
+        "src/NUnitFramework/framework/Warn.cs: overloaded method \u0027Unless\u0027 not analysed for complexity/callers",
+        "src/NUnitFramework/framework/Warn.cs: overloaded method \u0027If\u0027 not analysed for complexity/callers"
+      ]
+    },
+    "Warnings": null,
+    "TokenUsage": null
+  },
+  "Result": {
+    "Findings": [
+      {
+        "Severity": "High",
+        "Category": "Other",
+        "File": "src/NUnitFramework/framework/Assert.That.cs",
+        "Line": 115,
+        "Description": "Multiple overloads of Assert.That contain identical logic, leading to duplicated code and higher maintenance cost.",
+        "Recommendation": "Consolidate the overloads by delegating to a single private helper that contains the shared implementation.",
+        "CodeSnippet": "ConstraintEvaluator.Evaluate(code, expr, message, actualExpression, constraintExpression, ReportFailure);",
+        "FixExample": null,
+        "Confidence": 0.95,
+        "QuickFix": "Consolidate the overloads by delegating to a single private helper that contains the shared implementation.",
+        "Summary": null,
+        "Metrics": null,
+        "Impact": null,
+        "ModernizationContext": null,
+        "References": null,
+        "Agents": [
+          "LogicAgent"
+        ],
+        "Evaluation": null,
+        "Grounded": null
+      },
+      {
+        "Severity": "High",
+        "Category": "Complexity",
+        "File": "src/NUnitFramework/framework/Internal/ConstraintEvaluator.cs",
+        "Line": 0,
+        "Description": "Method Evaluate has cyclomatic complexity well above the target of 10 due to multiple nested conditionals handling nulls, hook execution, and result processing.",
+        "Recommendation": "Refactor Evaluate by extracting the hook handling, result evaluation, and failure reporting into separate private methods.",
+        "CodeSnippet": "public static void Evaluate\u003CT\u003E(T actual, IResolveConstraint expr, ... )",
+        "FixExample": null,
+        "Confidence": 0.92,
+        "QuickFix": "Refactor Evaluate by extracting the hook handling, result evaluation, and failure reporting into separate private methods.",
+        "Summary": null,
+        "Metrics": null,
+        "Impact": null,
+        "ModernizationContext": null,
+        "References": null,
+        "Agents": [
+          "LogicAgent"
+        ],
+        "Evaluation": null,
+        "Grounded": null
+      },
+      {
+        "Severity": "High",
+        "Category": "Other",
+        "File": "src/NUnitFramework/framework/Assert.That.cs",
+        "Line": 118,
+        "Description": "The refactored Assert.That passes the expr argument directly to ConstraintEvaluator.Evaluate without checking for null, which could cause a NullReferenceException when expr.Resolve() is invoked inside Evaluate.",
+        "Recommendation": "Add an ArgumentNullException check for expr before calling ConstraintEvaluator.Evaluate.",
+        "CodeSnippet": "ConstraintEvaluator.Evaluate(code, expr, message, actualExpression, constraintExpression, ReportFailure);",
+        "FixExample": null,
+        "Confidence": 0.88,
+        "QuickFix": "Add an ArgumentNullException check for expr before calling ConstraintEvaluator.Evaluate.",
+        "Summary": null,
+        "Metrics": null,
+        "Impact": null,
+        "ModernizationContext": null,
+        "References": null,
+        "Agents": [
+          "LogicAgent"
+        ],
+        "Evaluation": null,
+        "Grounded": null
+      },
+      {
+        "Severity": "High",
+        "Category": "Other",
+        "File": "src/NUnitFramework/framework/Warn.cs",
+        "Line": 69,
+        "Description": "Warn.Until passes the expr argument to ConstraintEvaluator.Evaluate without null validation, risking a NullReferenceException if the caller supplies a null constraint expression.",
+        "Recommendation": "Validate that expr is not null and throw ArgumentNullException before invoking ConstraintEvaluator.Evaluate.",
+        "CodeSnippet": "ConstraintEvaluator.Evaluate(code, expr, message, actualExpression, constraintExpression, IssueUnlessWarning);",
+        "FixExample": null,
+        "Confidence": 0.88,
+        "QuickFix": "Validate that expr is not null and throw ArgumentNullException before invoking ConstraintEvaluator.Evaluate.",
+        "Summary": null,
+        "Metrics": null,
+        "Impact": null,
+        "ModernizationContext": null,
+        "References": null,
+        "Agents": [
+          "LogicAgent"
+        ],
+        "Evaluation": null,
+        "Grounded": null
+      },
+      {
+        "Severity": "Medium",
+        "Category": "SolidViolation",
+        "File": "src/NUnitFramework/framework/Internal/Commands/TestActionCommand.cs",
+        "Line": 22,
+        "Description": "TestActionCommand directly references the concrete TestMethod type, violating the Dependency Inversion Principle and reducing testability of the command.",
+        "Recommendation": "Introduce an ITest interface abstraction and depend on it instead of the concrete TestMethod class.",
+        "CodeSnippet": "Guard.ArgumentValid(innerCommand.Test is TestMethod, \u0022TestActionCommand may only apply to a TestMethod\u0022, nameof(innerCommand));",
+        "FixExample": null,
+        "Confidence": 0.81,
+        "QuickFix": "Introduce an ITest interface abstraction and depend on it instead of the concrete TestMethod class.",
+        "Summary": null,
+        "Metrics": null,
+        "Impact": null,
+        "ModernizationContext": null,
+        "References": null,
+        "Agents": [
+          "LogicAgent"
+        ],
+        "Evaluation": null,
+        "Grounded": null
+      },
+      {
+        "Severity": "Low",
+        "Category": "Naming",
+        "File": "src/NUnitFramework/framework/Internal/Commands/TestActionHookRunner.cs",
+        "Line": 14,
+        "Description": "The static class name TestActionHookRunner does not clearly convey that it is responsible for invoking hooks around test actions; a more descriptive name would improve readability.",
+        "Recommendation": "Rename TestActionHookRunner to TestActionHookExecutor to better reflect its purpose.",
+        "CodeSnippet": "internal static class TestActionHookRunner",
+        "FixExample": null,
+        "Confidence": 0.73,
+        "QuickFix": "Rename TestActionHookRunner to TestActionHookExecutor to better reflect its purpose.",
+        "Summary": null,
+        "Metrics": null,
+        "Impact": null,
+        "ModernizationContext": null,
+        "References": null,
+        "Agents": [
+          "LogicAgent"
+        ],
+        "Evaluation": null,
+        "Grounded": null
+      }
+    ],
+    "Summary": "Reviewed 7 files. Found 6 findings across 5 files: 0 critical, 4 high, 1 medium, 1 low. 1 finding(s) could not be matched to a specific line."
+  },
+  "Warnings": [],
+  "GenerationTokens": {
+    "Calls": 2,
+    "PromptTokens": 3478,
+    "CompletionTokens": 1799,
+    "ByModel": {
+      "openai/gpt-oss-20b": {
+        "Calls": 1,
+        "PromptTokens": 667,
+        "CompletionTokens": 275
+      },
+      "openai/gpt-oss-120b": {
+        "Calls": 1,
+        "PromptTokens": 2811,
+        "CompletionTokens": 1524
+      }
+    },
+    "Total": 5277
+  }
+}
