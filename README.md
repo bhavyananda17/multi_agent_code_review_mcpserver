@@ -2,7 +2,7 @@
 
 > **Intelligent, automated code review powered by multi-agent AI**
 
-A multi-agent code review pipeline for C# repositories, built on Microsoft AutoGen against Groq's OpenAI-compatible API. Specialist agents review the diff of a commit, deterministic stages merge and verify what they found, and the result is a markdown report. It runs as a CLI, as an MCP server (stdio or HTTP) and as a small REST API. This README describes how it is built; what it was measured to do, and where it falls short, is in [benchmarks/](benchmarks/README.md).
+A multi-agent code review pipeline for C# repositories, built on Microsoft AutoGen against Groq's OpenAI-compatible API. Specialist agents review the diff of a commit, deterministic stages merge and verify what they found, and the result is a markdown report. It runs as a CLI, as an MCP server (stdio or HTTP) and as a small REST API.
 
 ---
 
