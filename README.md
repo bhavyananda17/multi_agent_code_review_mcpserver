@@ -1,6 +1,6 @@
 # Multi-Agent Code Review
 
-A multi-agent code review pipeline for C# repositories, built on Microsoft AutoGen against Groq's OpenAI-compatible API. Specialist agents review the diff of a commit, deterministic stages merge and verify what they found, and the result is a markdown report. It runs as a CLI, as an MCP server (stdio or HTTP) and as a small REST API.
+A multi-agent code review pipeline for C# repositories, built on Microsoft AutoGen against Groq's OpenAI-compatible API. Specialist agents review the diff of a commit, deterministic stages merge and verify what they found, and the result is a markdown report. It runs as a CLI and as an MCP server (stdio or HTTP).
 
 ## Results
 
@@ -41,7 +41,6 @@ Default models are `openai/gpt-oss-20b` for triage, onboarding and the quick sca
 | `Orchestration` | Pipeline, DI, Git and Roslyn tools, benchmark harness |
 | `Host` | CLI (`review`, `ask`, `docs`, `bench`, `bench-compare`, `bench-summary`) |
 | `McpServer` | MCP server, stdio or HTTP |
-| `Api` | REST wrapper (`POST /api/review`) |
 | `Tests` | xunit suite, 243 tests |
 
 ## Engineering decisions
@@ -130,7 +129,7 @@ On the 12-PR benchmark (Groq free tier): 6 to 84 s per PR (mean about 41 s) and 
 
 ## Deployment
 
-Workflows in `.github/workflows/` deploy two targets: the REST wrapper (`Api`) to Render, and the MCP server over HTTP to AWS (EC2, ECR, SSM, OIDC, `X-Api-Key` auth). **The AWS instance is currently stopped** to avoid cost, so no endpoint is up, and the deployed image is older than `main`.
+`.github/workflows/deploy-mcp-aws.yml` builds, tests and deploys the MCP server over HTTP to AWS (EC2, ECR, SSM, OIDC, `X-Api-Key` auth). **The AWS instance is currently stopped** to avoid cost, so no endpoint is up, and the deployed image is older than `main`.
 
 ## Known gaps
 

@@ -33,7 +33,7 @@ if (transportMode == "http")
 
     var app = builder.Build();
 
-    // Simple shared-secret gate (same X-Api-Key pattern already used by MultiAgentCodeReview.Api),
+    // Simple shared-secret gate (an X-Api-Key header),
     // not the SDK's built-in OAuth-based McpAuthenticationHandler - that's real OAuth machinery
     // meant for connecting to OAuth-secured resources, overkill for "keep strangers off my Groq
     // quota". /health stays open for infra health checks.
@@ -94,8 +94,7 @@ static void ConfigureCommon(IHostApplicationBuilder builder, string logPath)
     // Deliberately NOT passing builder.Configuration through - it includes UNPREFIXED
     // environment variables (both WebApplicationBuilder.Configuration and
     // HostApplicationBuilder.Configuration do this), which could let an unrelated
-    // unprefixed API_KEY/BASE_URL env var silently override the Groq config. Same fix
-    // already applied in MultiAgentCodeReview.Api/Program.cs - the extension's own
-    // internal ConfigurationBuilder already reads MULTIAGENT_*-prefixed vars correctly.
+    // unprefixed API_KEY/BASE_URL env var silently override the Groq config. The
+    // extension's own internal ConfigurationBuilder already reads MULTIAGENT_*-prefixed vars correctly.
     builder.Services.AddMultiAgentCodeReview();
 }

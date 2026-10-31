@@ -6,8 +6,7 @@ namespace MultiAgentCodeReview.Orchestration.Reporting;
 
 /// <summary>
 /// Builds the markdown code review report from a pipeline <see cref="ReviewOutput"/>.
-/// Single source of truth for the report format - shared by the MCP server
-/// (stdio tool review_repo) and the HTTP API (POST /api/review).
+/// Single source of truth for the report format, used by the MCP server (tool review_repo).
 /// Methods were moved verbatim from CodeReviewMcpTools; no logic changes.
 /// </summary>
 public static class ReportFormatter

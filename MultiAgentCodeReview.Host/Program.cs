@@ -23,7 +23,7 @@ builder.Configuration.AddEnvironmentVariables(prefix: "MULTIAGENT_");
 // Deliberately NOT passing builder.Configuration: it includes UNPREFIXED environment variables, so an
 // unrelated API_KEY (e.g. the REST API's X-Api-Key gate secret sitting in .env) would be picked up as the
 // LLM key and every request would 401. The extension reads MULTIAGENT_* variables itself, plus GROQ_API_KEY.
-// Same fix already applied in the Api and McpServer projects.
+// Same fix already applied in the McpServer project.
 builder.Services.AddMultiAgentCodeReview();
 
 var app = builder.Build();

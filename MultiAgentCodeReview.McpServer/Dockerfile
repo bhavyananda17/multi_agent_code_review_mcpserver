@@ -6,17 +6,14 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
-# Copy solution + project files first so `dotnet restore` is layer-cached.
+# Copy the project files this image needs first so `dotnet restore` is layer-cached.
 # Code changes then do not invalidate the package-download layer.
-COPY MultiAgentCodeReview.slnx ./
 COPY MultiAgentCodeReview.Core/MultiAgentCodeReview.Core.csproj MultiAgentCodeReview.Core/
 COPY MultiAgentCodeReview.Agents/MultiAgentCodeReview.Agents.csproj MultiAgentCodeReview.Agents/
 COPY MultiAgentCodeReview.Orchestration/MultiAgentCodeReview.Orchestration.csproj MultiAgentCodeReview.Orchestration/
-COPY MultiAgentCodeReview.Host/MultiAgentCodeReview.Host.csproj MultiAgentCodeReview.Host/
 COPY MultiAgentCodeReview.McpServer/MultiAgentCodeReview.McpServer.csproj MultiAgentCodeReview.McpServer/
-COPY MultiAgentCodeReview.Api/MultiAgentCodeReview.Api.csproj MultiAgentCodeReview.Api/
 
-RUN dotnet restore MultiAgentCodeReview.slnx
+RUN dotnet restore MultiAgentCodeReview.McpServer/MultiAgentCodeReview.McpServer.csproj
 
 # Now copy the full source and publish the MCP server
 COPY . .
