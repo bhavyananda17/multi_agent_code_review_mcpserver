@@ -31,3 +31,6 @@ packages/
 # Custom
 DEPLOY.md
 .claude/
+
+# Output written into reviewed repos by the MCP server
+.codereview/

@@ -1,159 +1,65 @@
-# MCP Server Setup Guide
+# MCP server setup
 
-This guide explains how to configure and use the Multi-Agent Code Review MCP server with OpenCode.
+`MultiAgentCodeReview.McpServer` exposes the review pipeline as three MCP tools. It speaks stdio by default (the client
+spawns it) or HTTP when `MCP_TRANSPORT=http`.
 
 ## Prerequisites
 
-- .NET 10 SDK installed
-- Groq API key (set in `.env`)
-- OpenCode installed
+- .NET 10 SDK
+- A Groq API key in `.env` (`GROQ_API_KEY`, see `.env.example`)
 
-## Quick Setup
+## Register it with a client (stdio)
 
-### 1. Build the MCP Server
-
-```bash
-cd /Users/bhavyananda17/Documents/coding/MultiAgentCodeReview
-dotnet build MultiAgentCodeReview.McpServer
-```
-
-### 2. Configure OpenCode
-
-Add to your `opencode.json` (project root) or `~/.config/opencode/opencode.jsonc` (global):
+Build once, then point your MCP client at the project. For OpenCode, add this to `opencode.json`:
 
 ```json
 {
   "mcp": {
     "code-review-agents": {
       "type": "local",
-      "command": ["dotnet", "run", "--project", "./MultiAgentCodeReview.McpServer"],
+      "command": ["dotnet", "run", "--project", "/path/to/MultiAgentCodeReview/MultiAgentCodeReview.McpServer"],
       "enabled": true
     }
   }
 }
 ```
 
-### 3. Restart OpenCode
+Other clients take the same command in their own format (`dotnet run --project <path>`). The server logs to
+`MCP_LOG_FILE` (default `/tmp/mcp-server.log`), because stdout is reserved for the protocol.
 
-Quit and reopen OpenCode from the project directory.
+## Tools
 
-## Available Tools
+| Tool | Arguments | Returns |
+|------|-----------|---------|
+| `review_repo` | `repo_path`, `commit_hash`, optional `base_commit` (default `commit_hash~1`), optional `issue` (GitHub URL or number) | Markdown report, plus a modernization quick-scan |
+| `ask_codebase` | `repo_path`, `question` | Answer grounded in the Roslyn analysis and a review of the repo |
+| `generate_docs` | `repo_path`, `commit_hash`, optional `base_commit` | Generated documentation (also saved under `~/Documents/CodeReviewReports`) |
 
-### 1. `review_repo`
+`repo_path` is a local path, or a git URL when the server runs somewhere that does not share your filesystem.
 
-Run a full multi-agent code review on a git repository.
-
-**Example prompts:**
-- "Review the current repo at HEAD"
-- "Run a code review on commit abc123"
-- "Check this PR for security issues"
-
-**Parameters:**
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `repo_path` | Yes | Absolute path to the git repo |
-| `commit_hash` | Yes | Commit to review (HEAD, sha, branch) |
-| `base_commit` | No | Base to diff against (default: HEAD~1) |
-
-### 2. `ask_codebase`
-
-Ask a natural language question about the codebase.
-
-**Example prompts:**
-- "Where is authentication handled in this project?"
-- "What calls the IUserRepository interface?"
-- "Which files would break if I change the IAgent interface?"
-- "Explain the pipeline flow"
-
-**Parameters:**
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `repo_path` | Yes | Absolute path to the git repo |
-| `question` | Yes | Natural language question |
-
-### 3. `generate_docs`
-
-Generate project documentation for a codebase.
-
-**Example prompts:**
-- "Generate documentation for this project"
-- "Create a README for this repo"
-- "Update the API documentation"
-
-**Parameters:**
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `repo_path` | Yes | Absolute path to the git repo |
-| `commit_hash` | Yes | Commit to document (HEAD, sha, branch) |
-| `base_commit` | No | Base to diff against (default: HEAD~1) |
-
-## Testing the Server
-
-### Manual Test (Terminal)
-
-Start the server in one terminal:
-```bash
-dotnet run --project MultiAgentCodeReview.McpServer
-```
-
-The server will wait for MCP protocol messages on stdin.
-
-### Verify Build
+## HTTP transport
 
 ```bash
-dotnet build MultiAgentCodeReview.McpServer
+MCP_TRANSPORT=http MCP_API_KEY=<secret> dotnet run --project MultiAgentCodeReview.McpServer
 ```
 
-Should complete with 0 errors.
+Clients send the secret in an `X-Api-Key` header. Without `MCP_API_KEY` the endpoint runs unauthenticated, which is only
+suitable for local development. See the Deployment section of the README for the AWS setup.
 
-## Rate Limits
+## Configuration
 
-The default Groq API configuration:
-- **Rate limit:** 1000 requests per day
-- **Agents per review:** 8 (Triage + 4 Specialists + Synthesis + Documentation + Onboarding)
-- **Reviews per day:** ~125 (1000 / 8)
+All settings are environment variables; the model per role and the verification stages are listed in the README's
+Configuration section and in `.env.example`. A role pointing at a model Groq has retired fails with a 404, so pin the
+models you rely on with `MULTIAGENT_MODEL_<ROLE>`.
 
-To increase limits, upgrade your Groq API plan or configure per-role model overrides.
+## Rate limits
 
-## Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `MULTIAGENT_GROQ_API_KEY` | **Required** Groq API key | — |
-| `MULTIAGENT_GROQ_BASE_URL` | Groq API endpoint | `https://api.groq.com/openai` |
-| `MULTIAGENT_MODEL_TRIAGE` | Override triage model | `llama-3.3-70b-versatile` |
-| `MULTIAGENT_MODEL_SECURITY` | Override security model | `llama-3.3-70b-versatile` |
-| `MULTIAGENT_MODEL_LOGIC` | Override logic model | `llama-3.3-70b-versatile` |
-| `MULTIAGENT_MODEL_PERFORMANCE` | Override performance model | `llama-3.3-70b-versatile` |
-| `MULTIAGENT_MODEL_MODERNIZATION` | Override modernization model | `llama-3.3-70b-versatile` |
-| `MULTIAGENT_MODEL_SYNTHESIS` | Override synthesis model | `llama-3.3-70b-versatile` |
-| `MULTIAGENT_MODEL_DOCUMENTATION` | Override documentation model | `llama-3.3-70b-versatile` |
-| `MULTIAGENT_MODEL_ONBOARDING` | Override onboarding model | `llama-3.1-8b-instant` |
+Groq's free tier caps requests and tokens per minute and per day. A review makes one triage call, up to three specialist
+calls and one judge call per eight findings. The specialists are started 15 seconds apart and retried with backoff on
+429s; see the README's Performance section.
 
 ## Troubleshooting
 
-### Server doesn't start
-
-1. Check `.env` file exists with `GROQ_API_KEY` set
-2. Run `dotnet build MultiAgentCodeReview.McpServer` to verify build
-3. Check OpenCode logs for MCP server errors
-
-### Tools don't appear in OpenCode
-
-1. Verify `opencode.json` has the correct MCP config
-2. Restart OpenCode (quit and reopen)
-3. Check that the `command` path is correct
-
-## Architecture
-
-```
-OpenCode (MCP Client)
-    ↓ stdio
-McpServer (ModelContextProtocol)
-    ↓ DI
-CodeReviewPipeline (Orchestration)
-    ↓
-8 AutoGen Agents (via AgentFactory)
-    ↓
-Groq API (Llama 3.3)
-```
+- **Server does not start:** `dotnet build MultiAgentCodeReview.McpServer`, confirm `GROQ_API_KEY` is set, and read
+  `MCP_LOG_FILE`.
+- **Tools do not appear:** check the client's MCP config points at the right path and restart the client.

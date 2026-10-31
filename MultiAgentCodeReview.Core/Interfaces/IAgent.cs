@@ -47,23 +47,6 @@ public interface IOnboardingAgent : IAgent
         CancellationToken cancellationToken = default);
 }
 
-public interface ILlmClient
-{
-    Task<string> CompleteAsync(
-        string systemPrompt,
-        string userPrompt,
-        double temperature = 0.2,
-        int maxTokens = 2000,
-        CancellationToken cancellationToken = default);
-
-    Task<T> CompleteJsonAsync<T>(
-        string systemPrompt,
-        string userPrompt,
-        double temperature = 0.2,
-        int maxTokens = 2000,
-        CancellationToken cancellationToken = default) where T : class;
-}
-
 public interface ICodeAnalysisTool
 {
     Task<int> GetCyclomaticComplexityAsync(string filePath, string methodName, string basePath = "");

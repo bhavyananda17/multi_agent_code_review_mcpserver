@@ -90,7 +90,10 @@ MultiAgentCodeReview.Agents        (references Core)
 MultiAgentCodeReview.Orchestration (references Core + Agents)
     ↑
     ├── MultiAgentCodeReview.Host        (references Orchestration)
-    └── MultiAgentCodeReview.McpServer   (references Orchestration + Agents)
+    ├── MultiAgentCodeReview.McpServer   (references Orchestration + Agents)
+    └── MultiAgentCodeReview.Api         (references Orchestration + Agents)
+
+MultiAgentCodeReview.Tests              (references Core, Agents, Orchestration)
 ```
 
 > **Note:** every project, including `MultiAgentCodeReview.McpServer` and `MultiAgentCodeReview.Tests`, is in `MultiAgentCodeReview.slnx`: `dotnet build` and `dotnet test` at the repo root cover everything.
@@ -159,7 +162,7 @@ graph LR
 | **Dedup** | C# code merges findings on the same file and line (keeping the most severe), and merges near-duplicate findings that have no line number | `CodeReviewPipeline.cs` — no LLM call needed |
 | **Grounding** | Deterministic check that the code each finding quotes actually exists in the commit (or in the diff, for removed lines); a finding quoting code that is not there is flagged. No LLM call | `GroundingStage.cs` |
 | **Self-eval** | An LLM judge scores each finding 1–3 on relevance, severity accuracy and actionability; totals below the threshold (default 5/9) are flagged low-confidence and shown in a separate report section (or dropped). Fails open: unscored findings are reported as-is. The report states whether the judge is the same model or family as the generators | `EvaluationStage.cs`, `EvalAgent.cs` — batches of 8 findings per call |
-| **ModernizationQuick** | Quick-scan for outdated patterns and legacy APIs | `ModernizationQuickAgent.cs` — small model, runs after the pipeline via the `review_repo` MCP tool |
+| **ModernizationQuick** | Quick-scan for outdated patterns and legacy APIs | `DocumentationAgent.cs` (`ModernizationQuickAgent`) — small model, runs after the pipeline via the `review_repo` MCP tool |
 
 **Static analysis context.** The Filter stage works out which methods the diff touches (from the hunks' line numbers), then calls the Roslyn `CodeAnalysisTool` for just those: `GetCyclomaticComplexityAsync`, `FindCallersAsync` and `DetectCodeSmellsAsync`. The results are stored on `PipelineContext.CodeAnalysis` and each specialist gets the slice that is relevant to it, appended after the diff (about 350 tokens at most):
 
@@ -378,14 +381,13 @@ dotnet run --project MultiAgentCodeReview.Host -- review <repo-path> HEAD --issu
 
 The issue title/body/labels are fetched from the GitHub REST API (no token needed for public repos; set `MULTIAGENT_GITHUB_TOKEN` for private ones). The Triage agent uses the issue to choose specialists, and the Filter stage ranks issue-relevant files first so they survive the file cap and reach the specialists before diff truncation. Without `--issue` the pipeline behaves exactly as before. The MCP `review_repo` tool takes the same value as an optional `issue` argument, and `POST /api/review` accepts an optional `issue` field.
 
-### Option 2: MCP Server (OpenCode)
+### Option 2: MCP Server
 
 ```bash
 # 1. Build
 dotnet build MultiAgentCodeReview.McpServer
 
-# 2. Add to opencode.json (see MCP_SETUP.md for details)
-# 3. Restart OpenCode and use the tools
+# 2. Register it with your MCP client (see MCP_SETUP.md)
 ```
 
 See [MCP_SETUP.md](MCP_SETUP.md) for detailed MCP configuration.
@@ -555,9 +557,8 @@ A working pipeline: parallel specialists, accurate line numbers, deterministic d
 - **A false claim about real code passes verification.** Grounding checks that quoted code exists, and the judge did not catch the one false `Critical` pair examined by hand. The specialists see a window of the diff, not the enclosing method signature, which is a likely cause.
 - The judge's scores have not been validated against labelled data, and a same-model or same-family judge is lenient.
 - The benchmark matcher is lexical and unvalidated; the benchmark is 12 hand-picked PRs.
-- Rate limiting infrastructure (`TokenBudget`, `RequestQueue`) is built but not wired in
-- RAG/knowledge search interfaces defined but unimplemented
+- `TokenBudget` and `RateLimitedHttpClient` are registered but nothing calls them; rate limits are handled by the 15 s stagger and retry-with-backoff, not by a budget
 - Roslyn call-site analysis is same-file only; analysis is limited to C# projects
 
 ### Roadmap
-Python support is not started: `FilterStage` whitelists C# extensions (`.py` files are dropped) and `CodeAnalysisTool` is Roslyn-only. The plan is a Ruff-backed analysis step (`ruff check --output-format json`, mapped to findings) behind an `IPythonRuffService`, added after dedup when Python files are present.
+Python support is not started: `FilterStage` whitelists C# extensions (`.py` files are dropped) and `CodeAnalysisTool` is Roslyn-only.

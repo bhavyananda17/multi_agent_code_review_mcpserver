@@ -160,7 +160,7 @@ public class CodeReviewMcpTools
         var reportsDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Documents", "CodeReviewReports");
         Directory.CreateDirectory(reportsDir);
         var repoFolder = new DirectoryInfo(sourceForFileName).Name;
-        var reportPath = Path.Combine(reportsDir, $"{repoFolder}_AGENT_REPORT.md");
+        var reportPath = Path.Combine(reportsDir, $"{repoFolder}_docs.md");
         await File.WriteAllTextAsync(reportPath, docs);
 
         return $"Documentation saved to {reportPath}\n\n{docs}";

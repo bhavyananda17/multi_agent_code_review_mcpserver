@@ -68,7 +68,7 @@ try
 }
 catch (Exception ex)
 {
-    Console.WriteLine($"\n❌ Error: {ex.Message}");
+    Console.WriteLine($"\nError: {ex.Message}");
     if (ex.InnerException != null)
         Console.WriteLine($"Details: {ex.InnerException.Message}");
     Environment.Exit(1);

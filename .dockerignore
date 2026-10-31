@@ -16,7 +16,6 @@
 
 # Project-specific
 TestCodeReviewRepo/
-TestAutoGenApi/
 **/.codereview/
 **/.review-cache.json
 *.log
