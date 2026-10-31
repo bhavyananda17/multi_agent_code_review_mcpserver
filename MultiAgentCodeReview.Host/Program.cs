@@ -243,7 +243,7 @@ static async Task RunReviewAsync(CodeReviewPipeline pipeline, IGitHubIssueServic
     }
     else
     {
-        Console.WriteLine("\n✅ Review completed with no findings!");
+        Console.WriteLine("\nReview completed with no findings!");
     }
 }
 

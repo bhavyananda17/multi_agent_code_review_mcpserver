@@ -5,7 +5,7 @@
 - **Matching:** text similarity ≥ 0.250 (Dice coefficient on stop-word-filtered, stemmed, camelCase-split tokens; >= 2 shared tokens required); mode `any-match`
 - **Findings scored:** reported findings only (flagged ones excluded)
 - **Pipeline:** static analysis on; grounding check on; self-evaluation on (threshold 5/9); diff window 6000 characters; agent timeout 300s per attempt
-- **Mode:** replay — findings come from an earlier recorded run; only grounding and the judge ran, so times and tokens below cover verification only
+- **Mode:** replay - findings come from an earlier recorded run; only grounding and the judge ran, so times and tokens below cover verification only
 - **Tokens:** 36,239 in total, about 3,019 per scored PR (counted from each response's own usage field)
 - **Judge:** `openai/gpt-oss-120b` (same model as a generator)
 - **Model overrides:** documentation=openai/gpt-oss-20b, eval=openai/gpt-oss-120b, logic=openai/gpt-oss-120b, modernization=openai/gpt-oss-120b, onboarding=openai/gpt-oss-20b, performance=openai/gpt-oss-120b, security=openai/gpt-oss-120b, synthesis=openai/gpt-oss-120b, triage=openai/gpt-oss-20b

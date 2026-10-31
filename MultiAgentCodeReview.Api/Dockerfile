@@ -1,5 +1,5 @@
 # ============================================================
-# MultiAgentCodeReview.Api — build context MUST be the repo root:
+# MultiAgentCodeReview.Api - build context MUST be the repo root:
 #   docker build -f MultiAgentCodeReview.Api/Dockerfile -t review-api:local .
 # (dotnet restore needs the .slnx + every referenced .csproj)
 # ============================================================
@@ -29,7 +29,7 @@ RUN dotnet publish MultiAgentCodeReview.Api/MultiAgentCodeReview.Api.csproj \
 # ---------- Stage 2: Runtime ----------
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 
-# git is required at REQUEST TIME — /api/review runs `git clone` inside the
+# git is required at REQUEST TIME - /api/review runs `git clone` inside the
 # running container, not at build time. apt-get needs root, so this runs
 # BEFORE switching to the non-root user.
 RUN apt-get update \
@@ -39,9 +39,9 @@ RUN apt-get update \
 WORKDIR /app
 
 # The official .NET 8+ runtime images ship with a built-in non-root
-# user named "app" (UID 1654). Use it — never run as root.
+# user named "app" (UID 1654). Use it - never run as root.
 # Clones land in Path.GetTempPath() = /tmp (world-writable, 1777), which
-# the app user can write to — verified in the run step of this phase.
+# the app user can write to - verified in the run step of this phase.
 USER app
 
 COPY --from=build /app/publish ./

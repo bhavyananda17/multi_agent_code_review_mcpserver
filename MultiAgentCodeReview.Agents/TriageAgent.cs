@@ -157,6 +157,6 @@ public class TriageAgent : MultiAgentCodeReview.Core.Interfaces.ITriageAgent
         new List<string> { "SECURITY", "PERFORMANCE", "LOGIC" },
         new List<string> { "SecurityAgent", "PerformanceAgent", "LogicAgent" },
         "MEDIUM",
-        "Default fallback — routing to all specialist agents"
+        "Default fallback - routing to all specialist agents"
     );
 }

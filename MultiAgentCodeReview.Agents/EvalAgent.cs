@@ -7,7 +7,7 @@ namespace MultiAgentCodeReview.Agents;
 
 /// <summary>
 /// Self-evaluation agent: scores findings on relevance, severity accuracy and actionability (1-3 each).
-/// Scoring is best-effort — anything the model fails to score comes back as null so the caller can
+/// Scoring is best-effort - anything the model fails to score comes back as null so the caller can
 /// fail open instead of hiding findings because the evaluator hiccuped.
 /// </summary>
 public class EvalAgent : MultiAgentCodeReview.Core.Interfaces.IEvalAgent

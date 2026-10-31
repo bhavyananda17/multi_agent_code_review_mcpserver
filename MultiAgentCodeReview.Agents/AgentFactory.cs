@@ -10,7 +10,6 @@ using AutoGen.OpenAI.Extension;
 using Microsoft.Extensions.Options;
 using MultiAgentCodeReview.Core.Configuration;
 using MultiAgentCodeReview.Core.Prompts;
-using MultiAgentCodeReview.Core.RateLimiting;
 using OpenAI;
 using OpenAI.Chat;
 
@@ -58,12 +57,10 @@ public class AgentFactory
     }
 
     private readonly PipelineConfig _config;
-    private readonly RateLimitedHttpClient _rateLimiter;
 
-    public AgentFactory(IOptions<PipelineConfig> config, RateLimitedHttpClient rateLimiter)
+    public AgentFactory(IOptions<PipelineConfig> config)
     {
         _config = config.Value;
-        _rateLimiter = rateLimiter;
     }
 
     public MultiAgentCodeReview.Core.Interfaces.ITriageAgent CreateTriageAgent()
@@ -149,10 +146,10 @@ public class AgentFactory
         // silently DROPS that backing field when serializing the request (verified by
         // capturing the outgoing body: only model/messages/temperature/max_tokens were sent),
         // so the suppression never reached Groq. A pipeline policy rewrites the serialized
-        // JSON body itself — public API, no SDK internals to rot. Guard matches any model id
+        // JSON body itself - public API, no SDK internals to rot. Guard matches any model id
         // starting with "qwen" so both "qwen/qwen3-32b" and unprefixed ids like "qwen3.6-27b"
         // are covered (Groq has renamed these ids before).
-        // NOTE: must be added BEFORE the ChatClient is constructed — the constructor freezes
+        // NOTE: must be added BEFORE the ChatClient is constructed - the constructor freezes
         // these options (AssertNotFrozen throws on later changes).
         if (modelConfig.ModelId.StartsWith("qwen", StringComparison.OrdinalIgnoreCase))
         {
@@ -213,9 +210,7 @@ public class AgentFactory
                 "documentation" => 8000,
                 "onboarding" => 3000,
                 _ => 2000
-            },
-            RpmLimit: 30,
-            TpmLimit: role == "synthesis" ? 12000 : 6000
+            }
         );
     }
 }
@@ -283,7 +278,7 @@ internal sealed class ReasoningEffortPolicy : PipelinePolicy
 
         if (node is not JsonObject obj)
         {
-            Console.Error.WriteLine("[ReasoningEffortPolicy] request body was not a JSON object — reasoning_effort not injected");
+            Console.Error.WriteLine("[ReasoningEffortPolicy] request body was not a JSON object - reasoning_effort not injected");
             return;
         }
 

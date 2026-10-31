@@ -7,9 +7,7 @@ public record ModelConfig(
     string Provider,
     string ModelId,
     double Temperature,
-    int MaxTokens,
-    int RpmLimit,
-    int TpmLimit
+    int MaxTokens
 );
 
 public class PipelineConfig

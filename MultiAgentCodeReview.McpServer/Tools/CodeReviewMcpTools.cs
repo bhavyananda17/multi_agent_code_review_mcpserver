@@ -17,7 +17,7 @@ public class CodeReviewMcpTools
     private readonly IRepositorySourceResolver _resolver;
     private readonly IGitHubIssueService _issues;
     // Keyed by the caller-supplied repo_path/repoUrl string, NOT the resolved (possibly
-    // temp) path — a URL clones to a fresh temp dir every call, so keying by the resolved
+    // temp) path - a URL clones to a fresh temp dir every call, so keying by the resolved
     // path would mean ask_codebase/generate_docs could never hit the cache after review_repo
     // for "the same" remote repo. Safe: OnboardingAgent.AnswerAsync and
     // DocumentationAgent.GenerateDocumentationAsync only read the already-materialized
@@ -45,7 +45,7 @@ public class CodeReviewMcpTools
     }
 
     [McpServerTool]
-    [Description("Run a full multi-agent code review on a git repository. Use this when the user asks to review a commit, check a PR, or audit recent changes. Do NOT use for single-file questions — use ask_codebase instead.")]
+    [Description("Run a full multi-agent code review on a git repository. Use this when the user asks to review a commit, check a PR, or audit recent changes. Do NOT use for single-file questions - use ask_codebase instead.")]
     public async Task<string> ReviewRepo(
         [Description("Absolute path to the git repo on disk, or a git clone URL (https:// or git@) for remote use")] string repo_path,
         [Description("The commit to review (HEAD, sha, branch name)")] string commit_hash,
@@ -56,7 +56,7 @@ public class CodeReviewMcpTools
         var localPath = resolved.Path;
 
         // For a URL, this cache lives inside the temp clone and is deleted with it when this
-        // method returns — effectively a no-op cache in remote mode, which is fine: a fresh
+        // method returns - effectively a no-op cache in remote mode, which is fine: a fresh
         // temp dir is used per call anyway, so there's never a second call that could reuse it.
         var reportDir = Path.Combine(localPath, ".codereview");
         var reportPath = Path.Combine(reportDir, "last_report.md");
@@ -106,7 +106,7 @@ public class CodeReviewMcpTools
     }
 
     [McpServerTool]
-    [Description("Ask a natural language question about a codebase. Use this for questions like 'where is auth handled?', 'what calls IUserRepository?', or 'which files would break if I change X?'. Do NOT use for full reviews — use review_repo instead.")]
+    [Description("Ask a natural language question about a codebase. Use this for questions like 'where is auth handled?', 'what calls IUserRepository?', or 'which files would break if I change X?'. Do NOT use for full reviews - use review_repo instead.")]
     public async Task<string> AskCodebase(
         [Description("Absolute path to the git repo on disk, or a git clone URL (https:// or git@) for remote use")] string repo_path,
         [Description("The natural language question to ask")] string question)
@@ -154,7 +154,7 @@ public class CodeReviewMcpTools
         var docAgent = _agentFactory.CreateDocumentationAgent();
         var docs = await docAgent.GenerateDocumentationAsync(output.Context, output.Result);
 
-        // Saved file is best-effort/secondary — the doc content is already returned below.
+        // Saved file is best-effort/secondary - the doc content is already returned below.
         // In a container this write is ephemeral (lost on restart), which is fine since the
         // returned string is the actual delivery mechanism for remote/HTTP callers.
         var reportsDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Documents", "CodeReviewReports");

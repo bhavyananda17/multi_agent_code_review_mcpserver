@@ -16,7 +16,7 @@ var logPath = Environment.GetEnvironmentVariable("MCP_LOG_FILE") ?? "/tmp/mcp-se
 
 // Two entirely separate builder/host paths, not a unified WebApplication for both modes.
 // WebApplication always starts Kestrel, and stdio transport is EXTREMELY sensitive to any
-// extraneous output on stdout (it's the JSON-RPC protocol stream) — even a Kestrel startup
+// extraneous output on stdout (it's the JSON-RPC protocol stream) - even a Kestrel startup
 // banner would corrupt it. So stdio mode keeps the exact original Host.CreateApplicationBuilder
 // path, byte-for-byte, and only http mode uses WebApplication/Kestrel.
 var transportMode = Environment.GetEnvironmentVariable("MCP_TRANSPORT")?.ToLowerInvariant() ?? "stdio";
@@ -34,14 +34,14 @@ if (transportMode == "http")
     var app = builder.Build();
 
     // Simple shared-secret gate (same X-Api-Key pattern already used by MultiAgentCodeReview.Api),
-    // not the SDK's built-in OAuth-based McpAuthenticationHandler — that's real OAuth machinery
+    // not the SDK's built-in OAuth-based McpAuthenticationHandler - that's real OAuth machinery
     // meant for connecting to OAuth-secured resources, overkill for "keep strangers off my Groq
     // quota". /health stays open for infra health checks.
     var apiKey = Environment.GetEnvironmentVariable("MCP_API_KEY");
     if (string.IsNullOrEmpty(apiKey))
     {
         app.Logger.LogWarning(
-            "MCP_API_KEY environment variable is not set — the MCP endpoint is running WITHOUT " +
+            "MCP_API_KEY environment variable is not set - the MCP endpoint is running WITHOUT " +
             "authentication (local dev mode). Set MCP_API_KEY to enforce the X-Api-Key gate.");
     }
 
@@ -91,11 +91,11 @@ static void ConfigureCommon(IHostApplicationBuilder builder, string logPath)
 
     builder.Configuration.AddEnvironmentVariables(prefix: "MULTIAGENT_");
 
-    // Deliberately NOT passing builder.Configuration through — it includes UNPREFIXED
+    // Deliberately NOT passing builder.Configuration through - it includes UNPREFIXED
     // environment variables (both WebApplicationBuilder.Configuration and
     // HostApplicationBuilder.Configuration do this), which could let an unrelated
     // unprefixed API_KEY/BASE_URL env var silently override the Groq config. Same fix
-    // already applied in MultiAgentCodeReview.Api/Program.cs — the extension's own
+    // already applied in MultiAgentCodeReview.Api/Program.cs - the extension's own
     // internal ConfigurationBuilder already reads MULTIAGENT_*-prefixed vars correctly.
     builder.Services.AddMultiAgentCodeReview();
 }

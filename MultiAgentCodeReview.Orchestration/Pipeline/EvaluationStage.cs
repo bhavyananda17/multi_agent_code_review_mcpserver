@@ -12,7 +12,7 @@ namespace MultiAgentCodeReview.Orchestration.Pipeline;
 /// Stage 5: after synthesis, an LLM scores every finding on relevance, severity accuracy and
 /// actionability (1-3 each). Findings whose total is below the configured threshold are flagged
 /// low-confidence and either kept for a separate report section or dropped.
-/// Fails open: if scoring is unavailable or a finding can't be scored, it is reported as-is —
+/// Fails open: if scoring is unavailable or a finding can't be scored, it is reported as-is -
 /// an evaluator outage must never silently hide findings.
 /// </summary>
 public class EvaluationStage

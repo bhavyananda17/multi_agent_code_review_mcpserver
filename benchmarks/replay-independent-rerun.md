@@ -5,16 +5,16 @@
 - **Matching:** text similarity ≥ 0.250 (Dice coefficient on stop-word-filtered, stemmed, camelCase-split tokens; >= 2 shared tokens required); mode `any-match`
 - **Findings scored:** reported findings only (flagged ones excluded)
 - **Pipeline:** static analysis on; grounding check on; self-evaluation on (threshold 5/9); diff window 6000 characters; agent timeout 300s per attempt
-- **Mode:** replay — findings come from an earlier recorded run; only grounding and the judge ran, so times and tokens below cover verification only
+- **Mode:** replay - findings come from an earlier recorded run; only grounding and the judge ran, so times and tokens below cover verification only
 - **Tokens:** 19,240 in total, about 2,137 per scored PR (counted from each response's own usage field)
 - **Judge:** `qwen/qwen3.8-27b` (independent family)
 - **Model overrides:** documentation=openai/gpt-oss-20b, eval=qwen/qwen3.8-27b, logic=openai/gpt-oss-120b, modernization=openai/gpt-oss-120b, onboarding=openai/gpt-oss-20b, performance=openai/gpt-oss-120b, security=openai/gpt-oss-120b, synthesis=openai/gpt-oss-120b, triage=openai/gpt-oss-20b
 
 | # | Repo | Commit | Findings | Ground truth | Precision | Recall | F1 | Time (s) | Tokens (k) |
 |--:|------|--------|---------:|-------------:|----------:|-------:|---:|---------:|-----------:|
-| 1 | dotnet/extensions | `2e537166` | — | 3 | — | — | — | failed | — |
-| 2 | dotnet/BenchmarkDotNet | `5a545385` | — | 3 | — | — | — | failed | — |
-| 3 | DapperLib/Dapper | `d56340b8` | — | 2 | — | — | — | failed | — |
+| 1 | dotnet/extensions | `2e537166` | - | 3 | - | - | - | failed | - |
+| 2 | dotnet/BenchmarkDotNet | `5a545385` | - | 3 | - | - | - | failed | - |
+| 3 | DapperLib/Dapper | `d56340b8` | - | 2 | - | - | - | failed | - |
 | 4 | fluentassertions/fluentassertions | `6ea70708` | 2 | 2 | 0.000 | 0.000 | 0.000 | 0.7 | 1.2 |
 | 5 | dotnet/aspire | `45651ce2` | 3 | 2 | 0.000 | 0.000 | 0.000 | 1.0 | 2.5 |
 | 6 | ppy/osu | `61e42030` | 6 | 2 | 0.000 | 0.000 | 0.000 | 1.5 | 3.8 |
@@ -31,9 +31,9 @@
 
 ## Failed rows (excluded from the averages)
 
-- Row 1 — dotnet/extensions @ `2e537166`: git clone failed for 'https://github.com/dotnet/extensions': Cloning into '/var/folders/cx/j17y0q8103118l_jghqvtnb40000gn/T/050ec04e-0863-4b1a-8d07-cff71931274b'... error: RPC failed; curl 92 HTTP/2 stream 5 was not closed cleanly: CANCEL (err 8) error: 18720 bytes of body are still expected fetch-pack: unexpected disconnect while reading sideband packet fatal: early EOF fatal: fetch-pack: invalid index-pack output
-- Row 2 — dotnet/BenchmarkDotNet @ `5a545385`: git clone failed for 'https://github.com/dotnet/BenchmarkDotNet': Cloning into '/var/folders/cx/j17y0q8103118l_jghqvtnb40000gn/T/e02a6fc4-88c1-4259-9743-59c680016ddc'... error: RPC failed; curl 56 Recv failure: Connection reset by peer error: 2199 bytes of body are still expected fetch-pack: unexpected disconnect while reading sideband packet fatal: early EOF fatal: fetch-pack: invalid index-pack output
-- Row 3 — DapperLib/Dapper @ `d56340b8`: git clone failed for 'https://github.com/DapperLib/Dapper': Cloning into '/var/folders/cx/j17y0q8103118l_jghqvtnb40000gn/T/11dea230-55af-4caa-8626-e46c3ccbd875'... error: RPC failed; curl 56 Recv failure: Operation timed out error: 8202 bytes of body are still expected fetch-pack: unexpected disconnect while reading sideband packet fatal: early EOF fatal: fetch-pack: invalid index-pack output
+- Row 1 - dotnet/extensions @ `2e537166`: git clone failed for 'https://github.com/dotnet/extensions': Cloning into '/var/folders/cx/j17y0q8103118l_jghqvtnb40000gn/T/050ec04e-0863-4b1a-8d07-cff71931274b'... error: RPC failed; curl 92 HTTP/2 stream 5 was not closed cleanly: CANCEL (err 8) error: 18720 bytes of body are still expected fetch-pack: unexpected disconnect while reading sideband packet fatal: early EOF fatal: fetch-pack: invalid index-pack output
+- Row 2 - dotnet/BenchmarkDotNet @ `5a545385`: git clone failed for 'https://github.com/dotnet/BenchmarkDotNet': Cloning into '/var/folders/cx/j17y0q8103118l_jghqvtnb40000gn/T/e02a6fc4-88c1-4259-9743-59c680016ddc'... error: RPC failed; curl 56 Recv failure: Connection reset by peer error: 2199 bytes of body are still expected fetch-pack: unexpected disconnect while reading sideband packet fatal: early EOF fatal: fetch-pack: invalid index-pack output
+- Row 3 - DapperLib/Dapper @ `d56340b8`: git clone failed for 'https://github.com/DapperLib/Dapper': Cloning into '/var/folders/cx/j17y0q8103118l_jghqvtnb40000gn/T/11dea230-55af-4caa-8626-e46c3ccbd875'... error: RPC failed; curl 56 Recv failure: Operation timed out error: 8202 bytes of body are still expected fetch-pack: unexpected disconnect while reading sideband packet fatal: early EOF fatal: fetch-pack: invalid index-pack output
 
 ## How to read this
 

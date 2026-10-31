@@ -14,7 +14,7 @@ public interface IBenchmarkRepoProvider : IAsyncDisposable
 /// Clones each distinct repo URL once (full clone, into a temp dir) and checks the requested commit out
 /// before each review. Checking out matters: the pipeline reads file contents and the Roslyn dependency
 /// graph from the working tree, which must be the commit under test, not whatever HEAD is today.
-/// Only ever operates on its own temp clones — it refuses local paths so it can't touch a real checkout.
+/// Only ever operates on its own temp clones - it refuses local paths so it can't touch a real checkout.
 /// </summary>
 public sealed class GitRepoProvider : IBenchmarkRepoProvider
 {

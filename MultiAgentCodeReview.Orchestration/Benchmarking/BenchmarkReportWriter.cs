@@ -26,7 +26,7 @@ public static class BenchmarkReportWriter
 
         sb.AppendLine("# Benchmark summary");
         sb.AppendLine();
-        sb.AppendLine($"- **Generated:** {result.GeneratedAtUtc:yyyy-MM-dd HH:mm:ss} UTC" + (result.Interrupted ? " — **interrupted, partial results**" : ""));
+        sb.AppendLine($"- **Generated:** {result.GeneratedAtUtc:yyyy-MM-dd HH:mm:ss} UTC" + (result.Interrupted ? " - **interrupted, partial results**" : ""));
         sb.AppendLine($"- **Rows:** {a.Rows} ({a.Succeeded} scored, {a.Failed} failed" + (a.DegradedRows > 0 ? $", {a.DegradedRows} scored with pipeline warnings" : "") + ")");
         sb.AppendLine($"- **Matching:** text similarity ≥ {F(s.SimilarityThreshold)} ({s.Similarity}); mode `{s.MatchMode}`");
         sb.AppendLine($"- **Findings scored:** {(s.IncludeLowConfidence ? "all, including flagged ones" : "reported findings only (flagged ones excluded)")}");
@@ -35,9 +35,9 @@ public static class BenchmarkReportWriter
                       (s.DiffCharBudget > 0 ? $"; diff window {s.DiffCharBudget} characters" : "") +
                       (s.AgentTimeoutSeconds > 0 ? $"; agent timeout {s.AgentTimeoutSeconds}s per attempt" : ""));
         if (s.Mode == "replay")
-            sb.AppendLine("- **Mode:** replay — findings come from an earlier recorded run; only grounding and the judge ran, so times and tokens below cover verification only");
+            sb.AppendLine("- **Mode:** replay - findings come from an earlier recorded run; only grounding and the judge ran, so times and tokens below cover verification only");
         else if (s.Mode == "record")
-            sb.AppendLine("- **Mode:** record — generations were saved so verification settings can later be replayed on identical findings");
+            sb.AppendLine("- **Mode:** record - generations were saved so verification settings can later be replayed on identical findings");
         if (a.TotalTokens > 0)
             sb.AppendLine($"- **Tokens:** {a.TotalTokens:N0} in total, about {a.TotalTokens / Math.Max(1, a.Succeeded):N0} per scored PR (counted from each response's own usage field)");
         if (s.EvaluationEnabled && s.JudgeModel != null)
@@ -53,11 +53,11 @@ public static class BenchmarkReportWriter
             if (r.Status == "ok")
             {
                 sb.AppendLine($"| {r.Row} | {Cell(Short(r.RepoUrl))} | `{r.CommitSha[..Math.Min(8, r.CommitSha.Length)]}` | {r.PredictedCount}{(r.Warnings is { Count: > 0 } ? " ⚠" : "")} | {r.GroundTruthCount} | " +
-                              $"{F(r.Precision)} | {F(r.Recall)} | {F(r.F1)} | {r.PipelineSeconds.ToString("F1", CultureInfo.InvariantCulture)} | {(r.Tokens is { } t ? (t.Total / 1000.0).ToString("F1", CultureInfo.InvariantCulture) : "—")} |");
+                              $"{F(r.Precision)} | {F(r.Recall)} | {F(r.F1)} | {r.PipelineSeconds.ToString("F1", CultureInfo.InvariantCulture)} | {(r.Tokens is { } t ? (t.Total / 1000.0).ToString("F1", CultureInfo.InvariantCulture) : "-")} |");
             }
             else
             {
-                sb.AppendLine($"| {r.Row} | {Cell(Short(r.RepoUrl))} | `{r.CommitSha[..Math.Min(8, r.CommitSha.Length)]}` | — | {r.GroundTruthCount} | — | — | — | failed | — |");
+                sb.AppendLine($"| {r.Row} | {Cell(Short(r.RepoUrl))} | `{r.CommitSha[..Math.Min(8, r.CommitSha.Length)]}` | - | {r.GroundTruthCount} | - | - | - | failed | - |");
             }
         }
 
@@ -83,7 +83,7 @@ public static class BenchmarkReportWriter
             sb.AppendLine("A stage degraded on these rows (for example a specialist timed out or the judge could not score), so their scores may be understated and say more about the infrastructure than about the pipeline. `bench-compare --exclude-degraded` leaves them out of a comparison.");
             sb.AppendLine();
             foreach (var r in degraded)
-                sb.AppendLine($"- Row {r.Row} — {Short(r.RepoUrl)}: {string.Join(" ", r.Warnings!)}");
+                sb.AppendLine($"- Row {r.Row} - {Short(r.RepoUrl)}: {string.Join(" ", r.Warnings!)}");
             sb.AppendLine();
         }
 
@@ -93,7 +93,7 @@ public static class BenchmarkReportWriter
             sb.AppendLine("## Failed rows (excluded from the averages)");
             sb.AppendLine();
             foreach (var r in failed)
-                sb.AppendLine($"- Row {r.Row} — {Short(r.RepoUrl)} @ `{r.CommitSha[..Math.Min(8, r.CommitSha.Length)]}`: {r.Error?.Replace("\n", " ")}");
+                sb.AppendLine($"- Row {r.Row} - {Short(r.RepoUrl)} @ `{r.CommitSha[..Math.Min(8, r.CommitSha.Length)]}`: {r.Error?.Replace("\n", " ")}");
             sb.AppendLine();
         }
 
@@ -109,7 +109,7 @@ public static class BenchmarkReportWriter
     }
 
     private static string F(double v) => v.ToString("0.000", CultureInfo.InvariantCulture);
-    private static string F(double? v) => v is { } x ? F(x) : "—";
+    private static string F(double? v) => v is { } x ? F(x) : "-";
 
     private static string Short(string url)
     {

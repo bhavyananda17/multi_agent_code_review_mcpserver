@@ -15,7 +15,7 @@ public interface IGitHubIssueService
     /// Resolves an optional issue reference (full issue URL, or a number such as "123" / "#123")
     /// into the issue's title and body. Returns null when <paramref name="issueRef"/> is blank,
     /// which keeps the commit-only flow untouched. Throws with an actionable message when an
-    /// explicitly requested issue cannot be fetched — failing before any LLM call is made.
+    /// explicitly requested issue cannot be fetched - failing before any LLM call is made.
     /// </summary>
     Task<IssueContext?> GetIssueAsync(string? issueRef, string repositoryPath, CancellationToken cancellationToken = default);
 }

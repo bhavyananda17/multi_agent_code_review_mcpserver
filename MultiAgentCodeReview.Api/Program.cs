@@ -30,7 +30,7 @@ var apiKey = Environment.GetEnvironmentVariable("API_KEY");
 if (string.IsNullOrEmpty(apiKey))
 {
     app.Logger.LogWarning(
-        "API_KEY environment variable is not set — /api/review is running WITHOUT authentication " +
+        "API_KEY environment variable is not set - /api/review is running WITHOUT authentication " +
         "(local dev mode). Set API_KEY to enforce the X-Api-Key gate.");
 }
 
@@ -101,7 +101,7 @@ app.MapPost("/api/review", async Task<IResult> (HttpRequest http, ReviewRequest 
 app.Run();
 
 // Full clone on purpose: GitOperationsTool resolves diffs via `git merge-base`,
-// which needs real commit history — a shallow clone would break it.
+// which needs real commit history - a shallow clone would break it.
 static async Task<(int ExitCode, string Error)> CloneRepoAsync(string repoUrl, string tempDir)
 {
     var psi = new ProcessStartInfo

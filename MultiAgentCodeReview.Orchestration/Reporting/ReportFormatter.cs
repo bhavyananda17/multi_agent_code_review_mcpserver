@@ -6,7 +6,7 @@ namespace MultiAgentCodeReview.Orchestration.Reporting;
 
 /// <summary>
 /// Builds the markdown code review report from a pipeline <see cref="ReviewOutput"/>.
-/// Single source of truth for the report format — shared by the MCP server
+/// Single source of truth for the report format - shared by the MCP server
 /// (stdio tool review_repo) and the HTTP API (POST /api/review).
 /// Methods were moved verbatim from CodeReviewMcpTools; no logic changes.
 /// </summary>
@@ -51,11 +51,11 @@ public static class ReportFormatter
         var grade = score >= 90 ? "A" : score >= 80 ? "B" : score >= 70 ? "C" : score >= 60 ? "D" : "F";
         var verdict = grade switch
         {
-            "A" => "Excellent — no issues found.",
-            "B" => "Good — minor issues, address when convenient.",
-            "C" => "Fair — some issues should be addressed this sprint.",
-            "D" => "Poor — significant issues need attention.",
-            _ => "Critical — do not merge until issues are resolved."
+            "A" => "Excellent - no issues found.",
+            "B" => "Good - minor issues, address when convenient.",
+            "C" => "Fair - some issues should be addressed this sprint.",
+            "D" => "Poor - significant issues need attention.",
+            _ => "Critical - do not merge until issues are resolved."
         };
 
         sb.AppendLine("## Health Score");
@@ -181,7 +181,7 @@ public static class ReportFormatter
             var reasons = threshold is { } t
                 ? $"the self-evaluation judge scored them below {t}/{FindingEvaluation.MaxTotal}, or the code they quote could not be found in the commit"
                 : "the self-evaluation judge flagged them, or the code they quote could not be found in the commit";
-            sb.AppendLine($"_Flagged because {reasons}. They may be off-topic, mis-rated, hallucinated or hard to act on — verify before acting. They are excluded from the health score above._");
+            sb.AppendLine($"_Flagged because {reasons}. They may be off-topic, mis-rated, hallucinated or hard to act on - verify before acting. They are excluded from the health score above._");
             sb.AppendLine();
             foreach (var finding in lowConfidence)
             {
@@ -213,7 +213,7 @@ public static class ReportFormatter
             sb.AppendLine("- **⚠️ Unverified:** the code this finding quotes was not found in the file at this commit.");
         if (finding.Evaluation is { } eval)
         {
-            sb.AppendLine($"- **Self-evaluation:** relevance {eval.Relevance}/{FindingEvaluation.MaxScore} · severity accuracy {eval.SeverityAccuracy}/{FindingEvaluation.MaxScore} · actionability {eval.Actionability}/{FindingEvaluation.MaxScore} — **{eval.Total}/{FindingEvaluation.MaxTotal}**{(eval.LowConfidence ? " ⚠️ low confidence" : "")}");
+            sb.AppendLine($"- **Self-evaluation:** relevance {eval.Relevance}/{FindingEvaluation.MaxScore} · severity accuracy {eval.SeverityAccuracy}/{FindingEvaluation.MaxScore} · actionability {eval.Actionability}/{FindingEvaluation.MaxScore} - **{eval.Total}/{FindingEvaluation.MaxTotal}**{(eval.LowConfidence ? " ⚠️ low confidence" : "")}");
             if (!string.IsNullOrWhiteSpace(eval.Rationale))
                 sb.AppendLine($"- **Evaluator note:** {eval.Rationale}");
         }

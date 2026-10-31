@@ -7,7 +7,7 @@ internal static class AgentHelpers
 {
     // Matches a <think>...</think> reasoning trace: case-insensitive, spans multiple
     // lines, and tolerates a MISSING closing tag (output truncated mid-think) via the
-    // `$` alternative — everything from <think> to end of string is dropped.
+    // `$` alternative - everything from <think> to end of string is dropped.
     private static readonly Regex ThinkingTraceRegex = new(
         @"<think\b[^>]*>.*?(?:</think>|$)",
         RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase);
@@ -20,7 +20,7 @@ internal static class AgentHelpers
     /// Removes LLM reasoning traces (&lt;think&gt; blocks) from response text before it is
     /// used as user-visible output. Defensive by design: reasoning_effort:"none" is sent to
     /// Groq for qwen models (see ReasoningEffortPolicy), but relying on a provider to honor
-    /// a request parameter is fragile — same rationale as TriageAgent.CleanJsonResponse.
+    /// a request parameter is fragile - same rationale as TriageAgent.CleanJsonResponse.
     /// </summary>
     internal static string StripThinkingTrace(string text)
     {
@@ -42,7 +42,7 @@ internal static class AgentHelpers
             {
                 if (!File.Exists(fullPath))
                 {
-                    results.Add($"--- {file.Path} [could not read {file.Path} — file not found] ---");
+                    results.Add($"--- {file.Path} [could not read {file.Path} - file not found] ---");
                     continue;
                 }
                 var content = File.ReadAllText(fullPath);

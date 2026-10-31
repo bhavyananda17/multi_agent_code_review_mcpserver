@@ -9,7 +9,7 @@ public interface IRepositorySourceResolver
 
 /// <summary>
 /// A repository location resolved from either a local path (used as-is) or a git
-/// URL (cloned to a temp dir). Disposing deletes the temp dir only if one was created —
+/// URL (cloned to a temp dir). Disposing deletes the temp dir only if one was created -
 /// local-path resolutions are a no-op on dispose so stdio/local usage is byte-for-byte
 /// unchanged from before this type existed.
 /// </summary>
@@ -34,7 +34,7 @@ public sealed class ResolvedRepository : IAsyncDisposable
             }
             catch
             {
-                // Best-effort cleanup — never let temp-dir deletion mask the caller's actual result.
+                // Best-effort cleanup - never let temp-dir deletion mask the caller's actual result.
             }
         }
         return ValueTask.CompletedTask;
@@ -57,7 +57,7 @@ public class RepositorySourceResolver : IRepositorySourceResolver
         var tempDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), Guid.NewGuid().ToString());
 
         // Full clone on purpose: GitOperationsTool resolves diffs via `git merge-base`,
-        // which needs real commit history — a shallow clone would break it.
+        // which needs real commit history - a shallow clone would break it.
         var psi = new ProcessStartInfo
         {
             FileName = "git",

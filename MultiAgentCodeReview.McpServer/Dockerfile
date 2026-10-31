@@ -1,5 +1,5 @@
 # ============================================================
-# Stage 1 — Build
+# Stage 1 - Build
 # Build context must be the REPO ROOT:
 #   docker build -f MultiAgentCodeReview.McpServer/Dockerfile -t multiagent-code-review:local .
 # ============================================================
@@ -25,11 +25,11 @@ RUN dotnet publish MultiAgentCodeReview.McpServer/MultiAgentCodeReview.McpServer
         -c Release -o /app/publish --no-restore
 
 # ============================================================
-# Stage 2 — Runtime
+# Stage 2 - Runtime
 # ============================================================
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 
-# git is required at REQUEST TIME — RepositorySourceResolver runs `git clone` inside
+# git is required at REQUEST TIME - RepositorySourceResolver runs `git clone` inside
 # the running container when a caller passes a repo URL instead of a local path
 # (remote/HTTP callers have no shared filesystem with the server). apt-get needs
 # root, so this runs BEFORE switching to the non-root user.
@@ -40,7 +40,7 @@ RUN apt-get update \
 WORKDIR /app
 
 # The official .NET 8+ runtime images ship with a built-in non-root
-# user named "app" (UID 1654). Use it — never run as root.
+# user named "app" (UID 1654). Use it - never run as root.
 USER app
 
 COPY --from=build /app/publish ./

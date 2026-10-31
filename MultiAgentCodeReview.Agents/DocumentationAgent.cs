@@ -157,7 +157,7 @@ public class OnboardingAgent : MultiAgentCodeReview.Core.Interfaces.IOnboardingA
             new[] { new TextMessage(Role.User, userPrompt) },
             cancellationToken: cancellationToken);
         var content = response is TextMessage tm ? tm.Content : response.ToString();
-        // Same defensive strip as ModernizationQuickAgent — OnboardingAgent uses the same
+        // Same defensive strip as ModernizationQuickAgent - OnboardingAgent uses the same
         // qwen-backed "onboarding" role, so it's exposed to the same reasoning-trace risk
         // even though reasoning_effort:"none" is sent via ReasoningEffortPolicy.
         return AgentHelpers.StripThinkingTrace(content ?? "");
@@ -214,7 +214,7 @@ public class ModernizationQuickAgent : MultiAgentCodeReview.Core.Interfaces.IAge
             new[] { new TextMessage(Role.User, userPrompt) },
             cancellationToken: cancellationToken);
         var content = response is TextMessage tm ? tm.Content : response.ToString();
-        // This Summary is surfaced verbatim in the review report — strip any reasoning
+        // This Summary is surfaced verbatim in the review report - strip any reasoning
         // trace the model emitted despite reasoning_effort:"none" (defensive; see
         // AgentHelpers.StripThinkingTrace).
         return new AgentResult(new List<Finding>(), AgentHelpers.StripThinkingTrace(content ?? ""));

@@ -2,7 +2,7 @@ namespace MultiAgentCodeReview.Core.Models;
 
 /// <summary>
 /// Self-evaluation of a single <see cref="Finding"/>: each dimension is scored 1 (poor) to 3 (good).
-/// These are LLM judgments, not ground truth — they exist to rank/flag findings, not to prove them.
+/// These are LLM judgments, not ground truth - they exist to rank/flag findings, not to prove them.
 /// </summary>
 public record FindingEvaluation(
     int Relevance,

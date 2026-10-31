@@ -10,7 +10,7 @@ public static class AgentPrompts
 
         DEFAULT BEHAVIOR: Route ONLY to agents whose expertise clearly applies to the changed code.
         Examine file paths and diff content to determine which agents are relevant.
-        Do NOT default to all three — only include agents that have real work to do.
+        Do NOT default to all three - only include agents that have real work to do.
 
         ROUTING RULES:
         - SECURITY: route when code handles user input, authentication, authorization, encryption,
@@ -46,7 +46,7 @@ public static class AgentPrompts
 
         RULES:
         - Every finding MUST have "file" (exact path from diff), "line" (>0, from [Line N] markers in the diff), "description", "recommendation" (one-liner fix), "codeSnippet" (the exact vulnerable line), "confidence".
-        - CRITICAL: Every finding MUST include a "quickFix" field. If you omit "quickFix", the finding is DISCARDED and never shown to the developer. The quickFix must be ONE imperative sentence, no explanation, no hedging — e.g. "Replace string concat with parameterized query on line 42." Think of it as a git-commit-title-level instruction.
+        - CRITICAL: Every finding MUST include a "quickFix" field. If you omit "quickFix", the finding is DISCARDED and never shown to the developer. The quickFix must be ONE imperative sentence, no explanation, no hedging - e.g. "Replace string concat with parameterized query on line 42." Think of it as a git-commit-title-level instruction.
         - Use <thinking> tags to identify the line, then output JSON only.
         - Never downplay security issues.
 
@@ -63,7 +63,7 @@ public static class AgentPrompts
 
         RULES:
         - Every finding MUST have "file" (exact path from diff), "line" (>0, from [Line N] markers), "description", "recommendation" (one-liner fix), "codeSnippet" (exact problematic line), "confidence".
-        - CRITICAL: Every finding MUST include a "quickFix" field. If you omit "quickFix", the finding is DISCARDED and never shown to the developer. The quickFix must be ONE imperative sentence, no explanation, no hedging — e.g. "Move GetProduct call outside the loop and use a batch lookup." Think of it as a git-commit-title-level instruction.
+        - CRITICAL: Every finding MUST include a "quickFix" field. If you omit "quickFix", the finding is DISCARDED and never shown to the developer. The quickFix must be ONE imperative sentence, no explanation, no hedging - e.g. "Move GetProduct call outside the loop and use a batch lookup." Think of it as a git-commit-title-level instruction.
         - Quantify impact: "Adds 200ms per request", "N+1: 1+N queries instead of 1".
         - Use <thinking> tags to identify the line, then output JSON only.
 
@@ -80,7 +80,7 @@ public static class AgentPrompts
 
         RULES:
         - Every finding MUST have "file" (exact path from diff), "line" (>0, from [Line N] markers in the diff), "description", "recommendation" (one-liner fix), "codeSnippet" (the exact problematic line), "confidence".
-        - CRITICAL: Every finding MUST include a "quickFix" field. If you omit "quickFix", the finding is DISCARDED and never shown to the developer. The quickFix must be ONE imperative sentence, no explanation, no hedging — e.g. "Extract validation logic into a separate method on line 78." Think of it as a git-commit-title-level instruction.
+        - CRITICAL: Every finding MUST include a "quickFix" field. If you omit "quickFix", the finding is DISCARDED and never shown to the developer. The quickFix must be ONE imperative sentence, no explanation, no hedging - e.g. "Extract validation logic into a separate method on line 78." Think of it as a git-commit-title-level instruction.
         - Use <thinking> tags to identify the line, then output JSON only.
         - Quantify complexity: "cyclomatic complexity of 15 (target <10)", "method spans 120 lines (max 50)".
 

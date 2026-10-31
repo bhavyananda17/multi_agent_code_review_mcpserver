@@ -3,7 +3,6 @@ using MultiAgentCodeReview.Agents;
 using MultiAgentCodeReview.Core.Configuration;
 using MultiAgentCodeReview.Core.Interfaces;
 using MultiAgentCodeReview.Core.Models;
-using MultiAgentCodeReview.Core.RateLimiting;
 using MultiAgentCodeReview.Orchestration.Pipeline;
 
 namespace MultiAgentCodeReview.Tests;
@@ -25,7 +24,7 @@ public class EvaluationStageTests
     private sealed class StubFactory : AgentFactory
     {
         public Func<IEvalAgent> Make = () => throw new InvalidOperationException("no API key");
-        public StubFactory(PipelineConfig config) : base(Options.Create(config), new RateLimitedHttpClient(new TokenBudget(30, 6000))) { }
+        public StubFactory(PipelineConfig config) : base(Options.Create(config)) { }
         public override IEvalAgent CreateEvalAgent() => Make();
     }
 
@@ -153,7 +152,7 @@ public class EvaluationStageTests
 
     // ---- judge independence: an LLM judge tends to favour output from its own model / family ----
 
-    private static ModelConfig Model(string role, string id) => new(role, "groq", id, 0.2, 1000, 30, 6000);
+    private static ModelConfig Model(string role, string id) => new(role, "groq", id, 0.2, 1000);
 
     private static async Task<(AgentResult Result, EvaluationSummary Summary)> WithModels(params (string Role, string Id)[] models)
     {
