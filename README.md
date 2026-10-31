@@ -129,7 +129,7 @@ On the 12-PR benchmark (Groq free tier): 6 to 84 s per PR (mean about 41 s) and 
 
 ## Deployment
 
-`.github/workflows/deploy-mcp-aws.yml` builds, tests and deploys the MCP server over HTTP to AWS (EC2, ECR, SSM, OIDC, `X-Api-Key` auth). **The AWS instance is currently stopped** to avoid cost, so no endpoint is up, and the deployed image is older than `main`.
+`.github/workflows/deploy-mcp-aws.yml` builds, tests and deploys the MCP server over HTTP to AWS (EC2, ECR, SSM, OIDC, `X-Api-Key` auth). Last deployed 2026-10-31 from `main`. The instance is started and stopped by hand to avoid cost, so an endpoint is not always up, and its public IP changes on each start. The workflow can also be run manually.
 
 ## Known gaps
 
